@@ -62,6 +62,7 @@ export class GeminiAdapter implements LLMProvider {
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const startedAt = Date.now();
+    const model = request.model === "default" || !request.model ? this.resolveDefaultModel() : request.model;
     const systemPrompt = this.buildSystemPrompt(request);
     const contents = request.messages
       .filter((message) => message.role !== "system")
@@ -71,7 +72,7 @@ export class GeminiAdapter implements LLMProvider {
       }));
 
     const response = await fetch(
-      `${this.baseUrl}/models/${request.model}:generateContent?key=${this.apiKey}`,
+      `${this.baseUrl}/models/${model}:generateContent?key=${this.apiKey}`,
       {
         method: "POST",
         headers: {
@@ -114,7 +115,7 @@ export class GeminiAdapter implements LLMProvider {
 
     return {
       content: content ?? "",
-      model: request.model,
+      model,
       usage: {
         promptTokens: usage?.promptTokenCount ?? 0,
         completionTokens: usage?.candidatesTokenCount ?? 0,

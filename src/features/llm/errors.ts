@@ -39,7 +39,7 @@ export const RETRY_CONFIG = {
 };
 
 export function isRetryableError(code: LLMErrorCode): boolean {
-  return RETRY_CONFIG.retryableErrors.includes(code);
+  return (RETRY_CONFIG.retryableErrors as readonly string[]).includes(code);
 }
 
 export function mapHttpStatusToErrorCode(status: number): LLMErrorCode {

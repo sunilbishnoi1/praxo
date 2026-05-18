@@ -24,5 +24,7 @@ export {
   ProviderConfigError,
   saveProviderConfig,
   testProviderConnection,
+  getActiveLLMProvider,
+  getDefaultUserId,
 } from "./providers.service";
 export { providerConfigSchema, providerIdSchema } from "./providers.validation";

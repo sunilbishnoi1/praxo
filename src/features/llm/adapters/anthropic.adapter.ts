@@ -56,6 +56,7 @@ export class AnthropicAdapter implements LLMProvider {
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const startedAt = Date.now();
+    const model = request.model === "default" || !request.model ? this.resolveDefaultModel() : request.model;
     const { systemPrompt, messages } = this.splitMessages(request);
 
     const response = await fetch(`${this.baseUrl}/messages`, {
@@ -66,7 +67,7 @@ export class AnthropicAdapter implements LLMProvider {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: request.model,
+        model,
         system: systemPrompt || undefined,
         messages,
         max_tokens: request.maxTokens ?? 1024,
@@ -174,7 +175,7 @@ export class AnthropicAdapter implements LLMProvider {
     const messages = request.messages
       .filter((message) => message.role !== "system")
       .map((message) => ({
-        role: message.role === "assistant" ? "assistant" : "user",
+        role: (message.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
         content: message.content,
       }));
 

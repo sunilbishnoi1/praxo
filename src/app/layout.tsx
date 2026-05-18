@@ -38,8 +38,9 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${instrumentSans.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-screen bg-background text-foreground">
+      <body className="min-h-screen bg-background text-foreground" suppressHydrationWarning>
         <div className="flex min-h-screen flex-col">
           <TopNav />
           <main className="mx-auto w-full max-w-[1200px] flex-1 px-page-x py-page-y">

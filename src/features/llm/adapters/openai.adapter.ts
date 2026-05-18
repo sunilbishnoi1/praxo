@@ -5,6 +5,7 @@ import {
   ChatResponse,
   ConnectionTestResult,
   LLMProvider,
+  LLMProviderId,
   ModelInfo,
   StreamChunk,
 } from "../types";
@@ -62,8 +63,8 @@ type OpenAIAdapterOptions = {
 };
 
 export class OpenAIAdapter implements LLMProvider {
-  readonly id = "openai" as const;
-  readonly name = "OpenAI";
+  readonly id: LLMProviderId = "openai";
+  readonly name: string = "OpenAI";
   readonly supportsStreaming = true;
   readonly maxContextTokens: Record<string, number> = {
     "gpt-4o": 128000,
@@ -86,11 +87,12 @@ export class OpenAIAdapter implements LLMProvider {
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const startedAt = Date.now();
+    const model = request.model === "default" || !request.model ? this.resolveDefaultModel() : request.model;
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: this.getHeaders(),
       body: JSON.stringify({
-        model: request.model,
+        model,
         messages: this.formatMessages(request),
         temperature: request.temperature ?? 0.7,
         max_tokens: request.maxTokens,
@@ -132,11 +134,12 @@ export class OpenAIAdapter implements LLMProvider {
   }
 
   async *chatStream(request: ChatRequest): AsyncGenerator<StreamChunk> {
+    const model = request.model === "default" || !request.model ? this.resolveDefaultModel() : request.model;
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: this.getHeaders(),
       body: JSON.stringify({
-        model: request.model,
+        model,
         messages: this.formatMessages(request),
         temperature: request.temperature ?? 0.7,
         max_tokens: request.maxTokens,

@@ -5,6 +5,7 @@ import { decryptText, encryptText } from "@/lib/encryption";
 import { createLLMProvider } from "./registry";
 import {
   LLM_PROVIDERS,
+  type LLMProvider,
   type LLMProviderId,
   type ProviderConfigInput,
   type ProviderId,
@@ -24,7 +25,7 @@ export class ProviderConfigError extends Error {
   }
 }
 
-async function getDefaultUserId(): Promise<string> {
+export async function getDefaultUserId(): Promise<string> {
   const existing = await prisma.user.findFirst({ select: { id: true } });
 
   if (existing) {
@@ -91,14 +92,14 @@ export async function listProviderStatuses(): Promise<ProviderStatus[]> {
   const configMap = new Map(configs.map((config) => [config.provider, config]));
 
   return configMap.size === 0
-    ? (LLM_PROVIDERS as ProviderId[]).concat("deepgram").map((provider) => ({
+    ? (LLM_PROVIDERS as unknown as ProviderId[]).concat("deepgram").map((provider) => ({
         provider,
         isConfigured: false,
         isValid: false,
         model: resolveDefaultModel(provider) ?? null,
         lastTestedAt: null,
       }))
-    : (LLM_PROVIDERS as ProviderId[]).concat("deepgram").map((provider) => {
+    : (LLM_PROVIDERS as unknown as ProviderId[]).concat("deepgram").map((provider) => {
         const configEntry = configMap.get(provider) ?? null;
         const hasKey = Boolean(configEntry?.apiKey);
 
@@ -265,4 +266,82 @@ export async function testProviderConnection(
     model: result.model,
     message: result.success ? "Connection successful" : result.error ?? "Test failed.",
   };
+}
+
+export async function getActiveLLMProvider(): Promise<{ providerId: LLMProviderId; adapter: LLMProvider }> {
+  const userId = await getDefaultUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { defaultLlmProvider: true }
+  });
+
+  let providerId: LLMProviderId | null = null;
+  if (user?.defaultLlmProvider) {
+    providerId = user.defaultLlmProvider as LLMProviderId;
+  } else {
+    // Check first valid provider config
+    const validConfig = await prisma.providerConfig.findFirst({
+      where: { userId, isValid: true, provider: { in: [...LLM_PROVIDERS] } }
+    });
+    if (validConfig) {
+      providerId = validConfig.provider as LLMProviderId;
+    } else {
+      // Check any configured provider
+      const anyConfig = await prisma.providerConfig.findFirst({
+        where: { userId, provider: { in: [...LLM_PROVIDERS] } }
+      });
+      if (anyConfig) {
+        providerId = anyConfig.provider as LLMProviderId;
+      }
+    }
+  }
+
+  // Fallback to first provider with an API key in config (env var) if still null
+  if (!providerId) {
+    if (config.openaiApiKey) providerId = "openai";
+    else if (config.geminiApiKey) providerId = "gemini";
+    else if (config.anthropicApiKey) providerId = "anthropic";
+    else if (config.groqApiKey) providerId = "groq";
+    else if (config.openrouterApiKey) providerId = "openrouter";
+    else providerId = "ollama"; // default local
+  }
+
+  // Load config for this provider
+  const configEntry = await prisma.providerConfig.findUnique({
+    where: {
+      userId_provider: {
+        userId,
+        provider: providerId,
+      },
+    },
+  });
+
+  const apiKey = providerId === "ollama"
+    ? ""
+    : configEntry 
+      ? decryptText(configEntry.apiKey, config.encryptionKey)
+      : (providerId === "openai" ? config.openaiApiKey :
+         providerId === "gemini" ? config.geminiApiKey :
+         providerId === "anthropic" ? config.anthropicApiKey :
+         providerId === "groq" ? config.groqApiKey :
+         providerId === "openrouter" ? config.openrouterApiKey : "");
+
+  const baseUrl = configEntry?.baseUrl ?? resolveDefaultBaseUrl(providerId);
+  const model = configEntry?.model ?? resolveDefaultModel(providerId);
+
+  if (!model) {
+    throw new ProviderConfigError(
+      `Model for provider ${providerId} is missing.`,
+      "MODEL_MISSING",
+      400
+    );
+  }
+
+  const adapter = createLLMProvider(providerId, {
+    apiKey,
+    baseUrl,
+    defaultModel: model,
+  });
+
+  return { providerId, adapter };
 }
