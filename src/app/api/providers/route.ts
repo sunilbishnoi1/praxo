@@ -1,9 +1,25 @@
-import { getHealthStatus } from "@/features/health";
 import { config } from "@/lib/config";
 import { rateLimit } from "@/lib/rate-limit";
 import { getClientId } from "@/lib/request";
+import { verifyAccessPin } from "@/lib/access";
+
+import { listProviderStatuses } from "@/features/llm";
 
 export async function GET(): Promise<Response> {
+  const access = await verifyAccessPin();
+  if (!access.allowed) {
+    return access.response ?? Response.json(
+      {
+        success: false,
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Access PIN required.",
+        },
+      },
+      { status: 401 }
+    );
+  }
+
   const clientId = await getClientId();
   const limit = rateLimit(
     clientId,
@@ -26,9 +42,9 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const health = await getHealthStatus();
+    const providers = await listProviderStatuses();
 
-    return Response.json({ success: true, data: health });
+    return Response.json({ success: true, data: { providers } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
 
@@ -37,7 +53,7 @@ export async function GET(): Promise<Response> {
         success: false,
         error: {
           code: "INTERNAL_ERROR",
-          message: "Health check failed.",
+          message: "Failed to load providers.",
           details: { message },
         },
       },
