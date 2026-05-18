@@ -139,8 +139,11 @@ export async function POST(
     // 4. Retrieve Round Type and Generate Tailored Questions
     const round = getRoundType(session.roundType);
     const generatedQuestions = await round.generateQuestions(context);
+    const questionList = Array.isArray(generatedQuestions)
+      ? generatedQuestions
+      : [];
 
-    if (!generatedQuestions || generatedQuestions.length === 0) {
+    if (questionList.length === 0) {
       return NextResponse.json(
         { success: false, error: { code: "GENERATION_ERROR", message: "Failed to generate interview questions." } },
         { status: 500 }
@@ -148,7 +151,7 @@ export async function POST(
     }
 
     // 5. Store Questions in Database
-    const dbQuestionsData = generatedQuestions.map((q, index) => {
+    const dbQuestionsData = questionList.map((q, index) => {
       // Map roundType to database questionType
       let mappedType = "technical";
       if (session.roundType === "dsa") mappedType = "dsa";

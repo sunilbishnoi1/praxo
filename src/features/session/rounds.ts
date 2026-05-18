@@ -30,10 +30,119 @@ async function generateJsonWithLlm<T>(
       cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
     }
 
-    return JSON.parse(cleanJson) as T;
+    const parsed = JSON.parse(cleanJson) as unknown;
+
+    if (Array.isArray(fallback)) {
+      if (Array.isArray(parsed)) {
+        return parsed as T;
+      }
+
+      if (parsed && typeof parsed === "object") {
+        const candidate =
+          (parsed as { questions?: unknown; items?: unknown; data?: unknown })
+            .questions ??
+          (parsed as { items?: unknown }).items ??
+          (parsed as { data?: unknown }).data;
+
+        if (Array.isArray(candidate)) {
+          return candidate as T;
+        }
+      }
+
+      return fallback;
+    }
+
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed[0] as T;
+    }
+
+    return parsed as T;
   } catch (error) {
     console.error("LLM Generation failed, falling back to static questions:", error);
     return fallback;
+  }
+}
+
+type NormalizedDifficulty = "intern" | "junior" | "mid" | "senior";
+
+function normalizeDifficulty(
+  difficulty: string,
+  yearsOfExperience?: number
+): NormalizedDifficulty {
+  const value = difficulty.trim().toLowerCase();
+
+  if (value === "intern") return "intern";
+  if (value === "junior" || value === "fresher") return "junior";
+  if (value === "mid") return "mid";
+  if (value === "senior" || value === "experienced") {
+    if (typeof yearsOfExperience === "number" && yearsOfExperience < 5) {
+      return "mid";
+    }
+    return "senior";
+  }
+
+  if (value === "custom") {
+    if (typeof yearsOfExperience !== "number") return "mid";
+    if (yearsOfExperience < 1) return "intern";
+    if (yearsOfExperience < 3) return "junior";
+    if (yearsOfExperience < 6) return "mid";
+    return "senior";
+  }
+
+  return "mid";
+}
+
+function formatDifficultyLabel(context: SessionContext): string {
+  const normalized = normalizeDifficulty(
+    context.difficulty,
+    context.yearsOfExperience
+  );
+  const label =
+    normalized === "intern"
+      ? "Intern"
+      : normalized === "junior"
+      ? "Junior"
+      : normalized === "mid"
+      ? "Mid"
+      : "Senior";
+
+  if (
+    context.difficulty.trim().toLowerCase() === "custom" &&
+    typeof context.yearsOfExperience === "number"
+  ) {
+    return `Custom (${context.yearsOfExperience} YOE, ${label})`;
+  }
+
+  return label;
+}
+
+function resolveQuestionCount(context: SessionContext): number {
+  if (
+    context.difficulty.trim().toLowerCase() === "custom" &&
+    typeof context.yearsOfExperience === "number"
+  ) {
+    if (context.yearsOfExperience >= 8) return 10;
+    if (context.yearsOfExperience >= 6) return 9;
+    if (context.yearsOfExperience >= 3) return 8;
+    if (context.yearsOfExperience >= 1) return 7;
+    return 6;
+  }
+
+  const normalized = normalizeDifficulty(
+    context.difficulty,
+    context.yearsOfExperience
+  );
+  switch (normalized) {
+    case "intern":
+      return 6;
+    case "junior":
+      return 7;
+    case "mid":
+      return 8;
+    case "senior":
+      return 10;
+    default:
+      return 8;
   }
 }
 
@@ -41,12 +150,16 @@ async function generateJsonWithLlm<T>(
  * Common helper to get question counts by difficulty
  */
 export function getStandardQuestionCount(difficulty: string): number {
-  switch (difficulty.toLowerCase()) {
+  const normalized = normalizeDifficulty(difficulty);
+  switch (normalized) {
     case "intern":
       return 6;
-    case "fresher":
+    case "junior":
       return 7;
-    case "experienced":
+    case "mid":
+      return 8;
+    case "senior":
+      return 10;
     default:
       return 8;
   }
@@ -65,7 +178,7 @@ export class TechnicalResumeRound implements RoundType {
 
   getSystemPrompt(context: SessionContext): string {
     return `You are a senior technical interviewer at a premium technology company. You are conducting a technical resume-based interview.
-Candidate Difficulty: ${context.difficulty}
+Candidate Difficulty: ${formatDifficultyLabel(context)}
 Target Company Tier: ${context.targetCompanyTier ?? "General"}
 Your tone is professional, encouraging, yet rigorous. You focus on concrete details, trade-offs, architecture decisions, and direct claims made in the resume.`;
   }
@@ -85,10 +198,11 @@ Your tone is professional, encouraging, yet rigorous. You focus on concrete deta
   }
 
   async generateQuestions(context: SessionContext): Promise<GeneratedQuestion[]> {
-    const questionCount = this.getQuestionCount(context.difficulty);
+    const questionCount = resolveQuestionCount(context);
+    const difficultyLabel = formatDifficultyLabel(context);
     const systemPrompt = "You are a professional technical interviewer generator. Output valid JSON list only.";
     
-    const userPrompt = `You are preparing interview questions for a ${context.difficulty}-level technical interview.
+    const userPrompt = `You are preparing interview questions for a ${difficultyLabel}-level technical interview.
 
 CANDIDATE'S RESUME SKILLS: ${JSON.stringify(context.resumeSkills ?? [])}
 CANDIDATE'S EXPERIENCE: ${JSON.stringify(context.resumeExperience ?? [])}
@@ -155,7 +269,7 @@ Output ONLY raw JSON.`;
 Question Asked: "${questionText}"
 Candidate's Answer: "${answerText}"
 
-Candidate Difficulty: ${context.difficulty}
+Candidate Difficulty: ${formatDifficultyLabel(context)}
 
 Rules for Follow-up:
 - If the candidate's answer was good and detailed, go deeper: ask about trade-offs, design alternatives, or scaling.
@@ -194,7 +308,7 @@ export class DSARound implements RoundType {
 
   getSystemPrompt(context: SessionContext): string {
     return `You are a technical interviewer conducting a Data Structures and Algorithms (DSA) round.
-Difficulty: ${context.difficulty}
+Difficulty: ${formatDifficultyLabel(context)}
 Experience: ${context.yearsOfExperience ?? 0} years
 Your focus is on assessing the candidate's logical approach, problem-solving, and verbal walkthrough of coding solutions, time/space complexities, and edge cases.`;
   }
@@ -219,18 +333,20 @@ Your focus is on assessing the candidate's logical approach, problem-solving, an
     const questionCount = this.getQuestionCount(context.difficulty);
     const systemPrompt = "You are a technical interviewer generating DSA problems. Output valid JSON list only.";
     
-    const userPrompt = `You are generating DSA problems for a ${context.difficulty}-level interview.
+    const userPrompt = `You are generating DSA problems for a ${formatDifficultyLabel(context)}-level interview.
 Candidate Experience: ${context.yearsOfExperience ?? 0} years.
 
 Generate exactly ${questionCount} data structures and algorithms questions with this distribution:
-- Arrays/Strings: 35%
-- Trees/Graphs: 35%
-- Dynamic Programming / Recursion / Sorting: 30%
+- Arrays/Strings: 25%
+- Trees/Graphs: 25%
+- Dynamic Programming: 20%
+- Other (Stacks, Queues, Linked Lists, Sorting): 30%
 
 Calibrate problem complexity based on Difficulty:
-- Intern: Easy LeetCode (e.g. Two Sum, Valid Parentheses, Reverse String)
-- Fresher: Easy-Medium LeetCode (e.g. Binary Search, DFS/BFS traversal, Linked List cycle)
-- Experienced: Medium-Hard LeetCode (e.g. LRU Cache, Course Schedule, DP knapsack, Merge Intervals)
+- Intern: Easy LeetCode (Two Sum, Valid Parentheses level)
+- Junior: Easy-Medium (Binary Search, BFS/DFS level)
+- Mid: Medium (DP, Graph algorithms)
+- Senior: Medium-Hard (DP, Graph algorithms, system-aware problems)
 
 For each question provide:
 1. questionText: The problem statement (clear, concise, with simple example inputs/outputs)
@@ -332,7 +448,7 @@ export class BehaviouralRound implements RoundType {
 
   getSystemPrompt(context: SessionContext): string {
     return `You are a behavioural interviewer assessing teamwork, leadership, problem solving under pressure, and adaptability.
-Difficulty: ${context.difficulty}
+Difficulty: ${formatDifficultyLabel(context)}
 Experience: ${context.yearsOfExperience ?? 0} years
 Your focus is to ensure the candidate responds using the STAR framework: Situation, Task, Action, Result.`;
   }
@@ -355,7 +471,7 @@ Your focus is to ensure the candidate responds using the STAR framework: Situati
     const questionCount = this.getQuestionCount(context.difficulty);
     const systemPrompt = "You are a behavioural interviewer generator. Output valid JSON list only.";
     
-    const userPrompt = `You are generating behavioural questions for a ${context.difficulty}-level candidate.
+    const userPrompt = `You are generating behavioural questions for a ${formatDifficultyLabel(context)}-level candidate.
 Candidate Experience: ${context.yearsOfExperience ?? 0} years.
 Candidate Experience Highlights: ${JSON.stringify(context.resumeExperience ?? [])}
 
@@ -364,6 +480,7 @@ Generate exactly ${questionCount} behavioural interview questions covering these
 - Conflict resolution & disagreements
 - Failure, mistakes & key learnings
 - Teamwork & collaboration
+- Problem-solving under pressure
 - Adaptability & rapid changes
 
 Each question must:
@@ -472,7 +589,7 @@ export class OOPCSRound implements RoundType {
 
   getSystemPrompt(context: SessionContext): string {
     return `You are a technical interviewer evaluating Computer Science and Object-Oriented Programming (OOP) fundamentals.
-Difficulty: ${context.difficulty}
+Difficulty: ${formatDifficultyLabel(context)}
 Evaluate depth in OOP design principles, SOLID design, operating systems, networks, and databases.`;
   }
 
@@ -494,18 +611,20 @@ Evaluate depth in OOP design principles, SOLID design, operating systems, networ
     const questionCount = this.getQuestionCount(context.difficulty);
     const systemPrompt = "You are an OOP/CS interviewer generator. Output valid JSON list only.";
     
-    const userPrompt = `You are interviewing a ${context.difficulty}-level candidate on OOP concepts and CS fundamentals.
+    const userPrompt = `You are interviewing a ${formatDifficultyLabel(context)}-level candidate on OOP concepts and CS fundamentals.
 Candidate Skills: ${JSON.stringify(context.resumeSkills ?? [])}
 
 Generate exactly ${questionCount} conceptual and application questions covering this split:
-- OOP & SOLID principles: 35%
-- Data Structures & DB concepts (SQL/NoSQL, indexing, normalization): 35%
-- System concepts (Operating Systems threads/processes, Networking HTTP/DNS): 30%
+- OOP & SOLID principles: 30%
+- Data Structures & DB concepts (SQL/NoSQL, indexing, normalization): 25%
+- System concepts (Operating Systems threads/processes, Networking HTTP/DNS): 25%
+- Language-specific depth (based on resume): 20%
 
 Calibrate question depth based on Difficulty:
 - Intern: Conceptual definitions and simple examples (e.g. polymorphism, process vs thread, index basics).
-- Fresher: Comparison and scenario-based applications (e.g. inheritance vs composition, ACID properties, TCP vs UDP).
-- Experienced: Advanced patterns, structural designs, and trade-offs (e.g. designing a decoupled plugin module with SOLID, distributed db trade-offs).
+- Junior: Comparison and scenario-based applications (e.g. inheritance vs composition, ACID properties, TCP vs UDP).
+- Mid: Advanced patterns with practical examples (e.g. plugin systems, normalization trade-offs).
+- Senior: Structural designs and trade-offs (e.g. designing extensible modules, distributed DB trade-offs).
 
 Return valid JSON array matching this format:
 Array<{
@@ -589,7 +708,7 @@ export class SystemDesignRound implements RoundType {
 
   getSystemPrompt(context: SessionContext): string {
     return `You are a system design interviewer.
-Difficulty: ${context.difficulty}
+Difficulty: ${formatDifficultyLabel(context)}
 Experience: ${context.yearsOfExperience ?? 0} years
 Company Tier: ${context.targetCompanyTier ?? "General"}
 Assess high-level design, component design, databases selection, caching, scaling considerations, and fault-tolerance.`;
@@ -614,16 +733,16 @@ Assess high-level design, component design, databases selection, caching, scalin
     const questionCount = this.getQuestionCount(context.difficulty);
     const systemPrompt = "You are a system design interviewer generator. Output valid JSON list only.";
     
-    const userPrompt = `You are generating system design prompts for a ${context.difficulty}-level interviewer.
+    const userPrompt = `You are generating system design prompts for a ${formatDifficultyLabel(context)}-level interviewer.
 Candidate Experience: ${context.yearsOfExperience ?? 0} years.
 Target Company Tier: ${context.targetCompanyTier ?? "general"}.
 
 Generate exactly ${questionCount} system design problems.
 
 Calibrate problem complexity:
-- Fresher: Simple systems (e.g. URL shortener, task tracker, simple file uploader)
-- Mid (3-5 YOE): Medium systems (e.g. Chat application, notification service, ride-sharing API)
-- Senior (5+ YOE): Complex systems (e.g. Distributed rate limiter, real-time analytics dashboard, global CDN)
+- Junior: Simple systems (URL shortener, task tracker)
+- Mid (3-5 YOE): Medium systems (chat application, notification service)
+- Senior (5+ YOE): Complex systems (distributed cache, real-time analytics)
 
 For each question provide:
 1. questionText: The architecture problem statement (including scale like 'design a service handling 100k requests per second')

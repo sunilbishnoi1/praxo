@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyAccessPin } from "@/lib/access";
+import { LLM_PROVIDERS } from "@/features/llm";
 import { getDefaultUserId } from "@/features/llm";
+import { listRoundTypes } from "@/features/session";
 import { analyzeGap } from "@/features/personalization";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -44,6 +46,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           jobDescription: {
             select: { id: true, name: true },
           },
+          report: {
+            select: { overallScore: true },
+          },
         },
         skip,
         take: limit,
@@ -71,6 +76,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         yearsOfExperience: s.yearsOfExperience,
         targetCompanyTier: s.targetCompanyTier,
         targetSalaryRange: s.targetSalaryRange,
+        overallScore: s.report?.overallScore ?? null,
+        questionCount: s.questionCount,
+        totalDurationMs: s.totalDurationMs ?? null,
         resume: s.resume,
         jobDescription: s.jobDescription,
         gapAnalysis: gap,
@@ -127,26 +135,141 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       llmProvider,
       sttProvider,
       ttsProvider,
+      useJdForScoring,
+      generateIdealAnswer,
+      voiceOnly,
     } = body;
 
     // Validation
-    if (!roundType || roundType.trim() === "") {
+    const roundTypeValue = typeof roundType === "string" ? roundType.trim() : "";
+    const difficultyValue = typeof difficulty === "string" ? difficulty.trim() : "";
+
+    if (!roundTypeValue) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: "roundType is required." } },
         { status: 400 }
       );
     }
-    if (!difficulty || difficulty.trim() === "") {
+    if (!difficultyValue) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: "difficulty is required." } },
         { status: 400 }
       );
     }
-    if (!llmProvider || llmProvider.trim() === "") {
+    const allowedRounds = new Set(listRoundTypes().map((round) => round.id));
+    if (!allowedRounds.has(roundTypeValue)) {
       return NextResponse.json(
-        { success: false, error: { code: "VALIDATION_ERROR", message: "llmProvider is required." } },
+        { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid roundType." } },
         { status: 400 }
       );
+    }
+
+    const normalizedDifficulty = difficultyValue.toLowerCase();
+    const allowedDifficulties = new Set([
+      "intern",
+      "junior",
+      "mid",
+      "senior",
+      "custom",
+      "fresher",
+      "experienced",
+    ]);
+    if (!allowedDifficulties.has(normalizedDifficulty)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid difficulty." } },
+        { status: 400 }
+      );
+    }
+
+    const normalizedStoredDifficulty =
+      normalizedDifficulty === "fresher"
+        ? "junior"
+        : normalizedDifficulty === "experienced"
+        ? "senior"
+        : normalizedDifficulty;
+
+    const parsedYears =
+      yearsOfExperience === null || yearsOfExperience === undefined
+        ? null
+        : Number(yearsOfExperience);
+    if (parsedYears !== null && Number.isNaN(parsedYears)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "yearsOfExperience must be a number." } },
+        { status: 400 }
+      );
+    }
+    if (normalizedStoredDifficulty === "custom" && parsedYears === null) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "yearsOfExperience is required for custom difficulty." } },
+        { status: 400 }
+      );
+    }
+
+    const stt = sttProvider || "deepgram";
+    const tts = ttsProvider || "openai";
+    if (!["deepgram", "whisper"].includes(stt)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid sttProvider." } },
+        { status: 400 }
+      );
+    }
+    if (!["openai", "kokoro"].includes(tts)) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid ttsProvider." } },
+        { status: 400 }
+      );
+    }
+
+    const requestedProvider = typeof llmProvider === "string" ? llmProvider.trim() : "";
+    let selectedProvider = requestedProvider;
+    let providerConfig = null;
+    if (selectedProvider) {
+      if (!(LLM_PROVIDERS as readonly string[]).includes(selectedProvider)) {
+        return NextResponse.json(
+          { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid llmProvider." } },
+          { status: 400 }
+        );
+      }
+
+      providerConfig = await prisma.providerConfig.findUnique({
+        where: {
+          userId_provider: {
+            userId,
+            provider: selectedProvider,
+          },
+        },
+      });
+
+      if (!providerConfig) {
+        return NextResponse.json(
+          { success: false, error: { code: "PROVIDER_NOT_CONFIGURED", message: "LLM provider is not configured." } },
+          { status: 400 }
+        );
+      }
+      if (!providerConfig.isValid) {
+        return NextResponse.json(
+          { success: false, error: { code: "PROVIDER_TEST_FAILED", message: "LLM provider is not validated." } },
+          { status: 422 }
+        );
+      }
+    } else {
+      providerConfig = await prisma.providerConfig.findFirst({
+        where: {
+          userId,
+          isValid: true,
+          provider: { in: [...LLM_PROVIDERS] },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+
+      if (!providerConfig) {
+        return NextResponse.json(
+          { success: false, error: { code: "PROVIDER_NOT_CONFIGURED", message: "No validated LLM provider available." } },
+          { status: 400 }
+        );
+      }
+
+      selectedProvider = providerConfig.provider;
     }
 
     // Load referenced inputs
@@ -179,14 +302,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Determine default LLM Model
     let selectedModel = "default";
-    const providerConfig = await prisma.providerConfig.findUnique({
-      where: {
-        userId_provider: {
-          userId,
-          provider: llmProvider,
-        },
-      },
-    });
     if (providerConfig?.model) {
       selectedModel = providerConfig.model;
     }
@@ -228,19 +343,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const session = await prisma.session.create({
       data: {
         userId,
-        roundType,
-        difficulty,
-        yearsOfExperience: yearsOfExperience ? parseFloat(yearsOfExperience) : null,
+        roundType: roundTypeValue,
+        difficulty: normalizedStoredDifficulty,
+        yearsOfExperience: parsedYears,
         targetCompanyTier: targetCompanyTier || null,
         targetSalaryRange: targetSalaryRange || null,
-        llmProvider,
+        llmProvider: selectedProvider,
         llmModel: selectedModel,
-        sttProvider: sttProvider || "deepgram",
-        ttsProvider: ttsProvider || "openai",
+        sttProvider: stt,
+        ttsProvider: tts,
         resumeId: resumeId || null,
         jobDescriptionId: jobDescriptionId || null,
         gapAnalysis: gapAnalysisJson,
         status: "configuring",
+        useJdForScoring:
+          typeof useJdForScoring === "boolean" ? useJdForScoring : true,
+        generateIdealAnswer:
+          typeof generateIdealAnswer === "boolean" ? generateIdealAnswer : true,
+        voiceOnly: typeof voiceOnly === "boolean" ? voiceOnly : false,
       },
     });
 
@@ -266,6 +386,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             targetCompanyTier: session.targetCompanyTier,
             targetSalaryRange: session.targetSalaryRange,
             gapAnalysis: parsedGap,
+            useJdForScoring: session.useJdForScoring,
+            generateIdealAnswer: session.generateIdealAnswer,
+            voiceOnly: session.voiceOnly,
             createdAt: session.createdAt.toISOString(),
           },
         },

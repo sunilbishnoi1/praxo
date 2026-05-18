@@ -140,10 +140,15 @@ model Session {
 
   // Configuration
   roundType         String // "technical-resume" | "dsa" | "behavioural" | "oop-cs" | "system-design"
-  difficulty        String // "intern" | "fresher" | "experienced"
-  yearsOfExperience Float? // Custom YOE input (when difficulty = "experienced")
+  difficulty        String // "intern" | "junior" | "mid" | "senior" | "custom"
+  yearsOfExperience Float? // Custom YOE input (when difficulty = "custom")
   targetCompanyTier String? // "faang" | "mid-tier" | "startup"
   targetSalaryRange String? // e.g. "15-25 LPA" or "$150k-$200k"
+
+  // Session options
+  useJdForScoring    Boolean @default(true)
+  generateIdealAnswer Boolean @default(true)
+  voiceOnly           Boolean @default(false)
 
   // Provider config snapshot (what was used for this session)
   llmProvider String // "openai" | "anthropic" | etc.

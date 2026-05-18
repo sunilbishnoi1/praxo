@@ -25,6 +25,9 @@ export async function GET(
       include: {
         resume: true,
         jobDescription: true,
+        report: {
+          select: { overallScore: true },
+        },
         questions: {
           orderBy: {
             orderIndex: "asc",
@@ -69,6 +72,12 @@ export async function GET(
           yearsOfExperience: session.yearsOfExperience,
           targetCompanyTier: session.targetCompanyTier,
           targetSalaryRange: session.targetSalaryRange,
+          questionCount: session.questionCount,
+          totalDurationMs: session.totalDurationMs ?? null,
+          overallScore: session.report?.overallScore ?? null,
+          useJdForScoring: session.useJdForScoring,
+          generateIdealAnswer: session.generateIdealAnswer,
+          voiceOnly: session.voiceOnly,
           resume: session.resume ? { id: session.resume.id, name: session.resume.name } : null,
           jobDescription: session.jobDescription ? { id: session.jobDescription.id, name: session.jobDescription.name } : null,
           gapAnalysis: gap,
@@ -78,11 +87,45 @@ export async function GET(
           questions: session.questions.map((q) => {
             let keyPoints: string[] = [];
             let relatedSkills: string[] = [];
+            let answerPayload: {
+              id: string;
+              transcript: string;
+              audioDurationMs: number | null;
+              fluencyMetrics: unknown;
+              scores: unknown;
+              createdAt: string;
+            } | null = null;
             try {
               if (q.expectedKeyPoints) keyPoints = JSON.parse(q.expectedKeyPoints);
               if (q.relatedSkills) relatedSkills = JSON.parse(q.relatedSkills);
             } catch {
               // ignore
+            }
+
+            if (q.answer) {
+              let fluencyMetrics: unknown = null;
+              let scores: unknown = null;
+              try {
+                fluencyMetrics = q.answer.fluencyMetrics
+                  ? JSON.parse(q.answer.fluencyMetrics)
+                  : null;
+              } catch {
+                // ignore
+              }
+              try {
+                scores = q.answer.scores ? JSON.parse(q.answer.scores) : null;
+              } catch {
+                // ignore
+              }
+
+              answerPayload = {
+                id: q.answer.id,
+                transcript: q.answer.transcript,
+                audioDurationMs: q.answer.audioDurationMs ?? null,
+                fluencyMetrics,
+                scores,
+                createdAt: q.answer.createdAt.toISOString(),
+              };
             }
 
             return {
@@ -96,6 +139,7 @@ export async function GET(
               dsaProblemType: q.dsaProblemType,
               expectedTimeComplexity: q.expectedTimeComplexity,
               expectedSpaceComplexity: q.expectedSpaceComplexity,
+              answer: answerPayload,
               answered: !!q.answer,
             };
           }),
