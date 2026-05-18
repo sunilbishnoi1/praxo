@@ -1,0 +1,43 @@
+@config "../../tailwind.config.ts";
+@import "tailwindcss";
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --surface: 0 0% 98%;
+  --surface-raised: 0 0% 100%;
+  --surface-overlay: 0 0% 100%;
+  --border: 220 13% 91%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+}
+
+.dark {
+  --background: 224 55% 6%;
+  --foreground: 210 40% 98%;
+  --surface: 224 40% 9%;
+  --surface-raised: 224 36% 12%;
+  --surface-overlay: 224 30% 16%;
+  --border: 224 18% 24%;
+  --muted: 224 28% 12%;
+  --muted-foreground: 215 20% 65%;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: var(--font-display);
+  }
+}

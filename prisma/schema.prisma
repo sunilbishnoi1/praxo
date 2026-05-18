@@ -1,0 +1,320 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Dual datasource: SQLite for lite mode, PostgreSQL for full mode.
+// Controlled by DATABASE_URL in .env
+// For SQLite:     DATABASE_URL="file:./praxo.db"
+// For PostgreSQL: DATABASE_URL="postgresql://praxo:praxo@localhost:5432/praxo"
+// Change provider to "postgresql" for full mode.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER (single-user, auto-created on first run)
+// ============================================================================
+
+model User {
+  id   String @id @default(cuid())
+  name String @default("User")
+
+  // Preferences
+  defaultLlmProvider String? // "openai" | "anthropic" | "gemini" | "groq" | "openrouter" | "ollama"
+  defaultSttProvider String? // "deepgram" | "whisper"
+  defaultTtsProvider String? // "openai" | "kokoro"
+  defaultDifficulty  String? // "intern" | "fresher" | "experienced"
+  defaultRoundType   String? // "technical-resume" | "dsa" | "behavioural" | "oop-cs" | "system-design"
+
+  // Relations
+  sessions        Session[]
+  resumes         Resume[]
+  jobDescriptions JobDescription[]
+  providerConfigs ProviderConfig[]
+  progressEntries ProgressEntry[]
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ============================================================================
+// PROVIDER CONFIGURATION (BYOK)
+// ============================================================================
+
+model ProviderConfig {
+  id       String @id @default(cuid())
+  userId   String
+  provider String // "openai" | "anthropic" | "gemini" | "groq" | "openrouter" | "ollama" | "deepgram"
+  apiKey   String  // Encrypted with AES-256-GCM. For ollama: empty string.
+  baseUrl  String? // Custom base URL override
+  model    String? // Preferred model for this provider
+
+  // Status
+  isValid      Boolean  @default(false) // Set after successful test call
+  lastTestedAt DateTime?
+  lastError    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@map("provider_configs")
+}
+
+// ============================================================================
+// RESUME & JOB DESCRIPTION
+// ============================================================================
+
+model Resume {
+  id     String @id @default(cuid())
+  userId String
+  name   String // User-given name, e.g. "SDE Resume 2026"
+
+  // Raw content
+  rawText  String   // Full extracted text from PDF or user input
+  fileUrl  String? // Path to uploaded PDF (local storage)
+  fileHash String? // SHA-256 of uploaded file (dedup)
+
+  // Parsed content (JSON)
+  parsedSkills     String? // ["React", "Node.js", "PostgreSQL", ...]
+  parsedExperience String? // [{ company, role, duration, highlights }, ...]
+  parsedEducation  String? // [{ institution, degree, year }, ...]
+  parsedProjects   String? // [{ name, description, technologies }, ...]
+  experienceLevel  String? // "intern" | "fresher" | "junior" | "mid" | "senior"
+  yearsOfExperience Float?
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@map("resumes")
+}
+
+model JobDescription {
+  id     String @id @default(cuid())
+  userId String
+  name   String // User-given name, e.g. "Google SDE-2"
+
+  // Raw content
+  rawText   String   // Full JD text
+  sourceUrl String? // URL if pasted from a link
+
+  // Parsed content (JSON)
+  parsedRequiredSkills String? // ["React", "System Design", ...]
+  parsedNiceToHave     String? // ["GraphQL", "AWS", ...]
+  parsedRoleLevel      String? // "intern" | "junior" | "mid" | "senior" | "staff"
+  parsedCompanyName    String?
+  parsedCompanyTier    String? // "faang" | "mid-tier" | "startup"
+  parsedKeywords       String? // Additional keywords extracted
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@map("job_descriptions")
+}
+
+// ============================================================================
+// SESSION
+// ============================================================================
+
+model Session {
+  id     String @id @default(cuid())
+  userId String
+
+  // Configuration
+  roundType         String // "technical-resume" | "dsa" | "behavioural" | "oop-cs" | "system-design"
+  difficulty        String // "intern" | "fresher" | "experienced"
+  yearsOfExperience Float? // Custom YOE input (when difficulty = "experienced")
+  targetCompanyTier String? // "faang" | "mid-tier" | "startup"
+  targetSalaryRange String? // e.g. "15-25 LPA" or "$150k-$200k"
+
+  // Provider config snapshot (what was used for this session)
+  llmProvider String // "openai" | "anthropic" | etc.
+  llmModel    String // "gpt-4o" | "claude-sonnet-4-20250514" | etc.
+  sttProvider String // "deepgram" | "whisper"
+  ttsProvider String // "openai" | "kokoro"
+
+  // Linked inputs
+  resumeId         String?
+  jobDescriptionId String?
+
+  // Gap analysis result (computed at session start)
+  gapAnalysis String? // { strongSkills: [], weakSkills: [], missingSkills: [], focusAreas: [] }
+
+  // Session state
+  status          String   @default("configuring") // "configuring" | "in_progress" | "completed" | "abandoned"
+  startedAt       DateTime?
+  completedAt     DateTime?
+  totalDurationMs Int? // Total session duration in milliseconds
+  questionCount   Int      @default(0)
+
+  // Relations
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume         Resume?         @relation(fields: [resumeId], references: [id])
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id])
+  questions      Question[]
+  report         SessionReport?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId, createdAt])
+  @@index([userId, roundType])
+  @@map("sessions")
+}
+
+// ============================================================================
+// QUESTION & ANSWER
+// ============================================================================
+
+model Question {
+  id        String @id @default(cuid())
+  sessionId String
+
+  // Question content
+  text         String  // The question as asked by the AI interviewer
+  questionType String // "opening" | "technical" | "follow_up" | "behavioural" | "dsa" | "system_design"
+  difficulty   String // "easy" | "medium" | "hard"
+  orderIndex   Int // Position in session (0-based)
+
+  // Expected answer (for scoring reference — generated at question creation time)
+  expectedAnswer    String?  // AI-generated ideal answer
+  expectedKeyPoints String? // ["key point 1", "key point 2", ...]
+  relatedSkills     String? // Skills this question targets ["React", "State Management"]
+
+  // DSA-specific fields
+  dsaProblemType          String? // "array" | "tree" | "graph" | "dp" | "string" | etc.
+  expectedTimeComplexity  String? // "O(n)" | "O(n log n)" | etc.
+  expectedSpaceComplexity String? // "O(1)" | "O(n)" | etc.
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  answer  Answer?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sessionId, orderIndex])
+  @@map("questions")
+}
+
+model Answer {
+  id         String @id @default(cuid())
+  questionId String @unique
+
+  // User's answer
+  transcript      String  // Full STT transcript
+  audioDurationMs Int? // How long the user spoke in ms
+
+  // Fluency metrics (computed by FluencyAnalyzer)
+  fluencyMetrics String
+
+  // Scoring (computed by ScoringEngine)
+  scores String
+
+  // Code submission (DSA rounds only)
+  codeSubmission     String?  // User's code
+  codeLanguage       String? // "python" | "javascript" | "typescript" | "java" | "cpp" | "go"
+  codeExecutionResult String? // { passed: boolean, stdout: string, stderr: string, executionTimeMs: number }
+
+  // Relations
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("answers")
+}
+
+// ============================================================================
+// SESSION REPORT
+// ============================================================================
+
+model SessionReport {
+  id        String @id @default(cuid())
+  sessionId String @unique
+
+  // Overall scores
+  overallScore   Int // 0-100
+  roundTypeScore Int // 0-100 (weighted for round type)
+
+  // Dimension averages across all answers
+  dimensionAverages String
+
+  // Fluency summary
+  fluencySummary String
+
+  // Analysis
+  strongestAnswerIds String // [questionId, ...] — top 2 answers
+  weakestAnswerIds   String // [questionId, ...] — bottom 2 answers
+  companyFitScore    Int? // 0-100 (only if JD was provided)
+  companyFitAnalysis String?  // LLM-generated fit analysis
+
+  // Generated summaries
+  overallSummary       String   // 2-3 paragraph session summary
+  keyStrengths         String // ["strength 1", "strength 2", ...]
+  keyWeaknesses        String // ["weakness 1", "weakness 2", ...]
+  studyRecommendations String // [{ topic: string, resources: string[], priority: "high" | "medium" | "low" }]
+  nextSessionFocus     String?  // What to focus on in the next session
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("session_reports")
+}
+
+// ============================================================================
+// PROGRESS TRACKING
+// ============================================================================
+
+model ProgressEntry {
+  id     String @id @default(cuid())
+  userId String
+
+  // Denormalized snapshot for fast charting (no joins needed)
+  sessionId      String   @unique
+  sessionDate    DateTime
+  roundType      String
+  difficulty     String
+  overallScore   Int // 0-100
+  fluencyScore   Int // 0-100
+  relevanceScore Int // 0-100
+  depthScore     Int // 0-100
+  technicalScore Int // 0-100
+  coherenceScore Int // 0-100
+  averageWpm     Float
+  fillerWordCount Int
+  pauseCount     Int
+  questionCount  Int
+  durationMs     Int
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, sessionDate])
+  @@index([userId, roundType, sessionDate])
+  @@map("progress_entries")
+}
