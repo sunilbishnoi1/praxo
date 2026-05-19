@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { verifyAccessPin } from "@/lib/access";
 import { LLM_PROVIDERS } from "@/features/llm";
@@ -205,15 +206,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const stt = sttProvider || "deepgram";
-    const tts = ttsProvider || "openai";
+    const stt = sttProvider || config.sttProvider || "deepgram";
+    const tts = ttsProvider || config.ttsProvider || "deepgram";
     if (!["deepgram", "whisper"].includes(stt)) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid sttProvider." } },
         { status: 400 }
       );
     }
-    if (!["openai", "kokoro"].includes(tts)) {
+    if (!["deepgram", "openai", "kokoro"].includes(tts)) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid ttsProvider." } },
         { status: 400 }

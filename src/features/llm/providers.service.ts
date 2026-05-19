@@ -13,6 +13,7 @@ import {
   type ProviderStatus,
   type ProviderTestResult,
 } from "./types";
+import { testDeepgramConnection } from "@/features/voice/stt/deepgram.adapter";
 
 export class ProviderConfigError extends Error {
   readonly code: string;
@@ -194,6 +195,62 @@ export async function deleteProviderConfig(provider: ProviderId): Promise<void> 
 export async function testProviderConnection(
   provider: ProviderId
 ): Promise<ProviderTestResult> {
+  if (provider === "deepgram") {
+    const userId = await getDefaultUserId();
+    const configEntry = await prisma.providerConfig.findUnique({
+      where: {
+        userId_provider: {
+          userId,
+          provider,
+        },
+      },
+    });
+
+    if (!configEntry) {
+      throw new ProviderConfigError(
+        "Provider is not configured.",
+        "PROVIDER_NOT_CONFIGURED",
+        400
+      );
+    }
+
+    const apiKey = configEntry.apiKey ? decryptText(configEntry.apiKey, config.encryptionKey) : config.deepgramApiKey;
+
+    if (!apiKey) {
+      throw new ProviderConfigError(
+        "API key is missing for this provider.",
+        "API_KEY_MISSING",
+        400
+      );
+    }
+
+    const result = await testDeepgramConnection(apiKey);
+    const now = new Date();
+
+    await prisma.providerConfig.update({
+      where: {
+        userId_provider: {
+          userId,
+          provider,
+        },
+      },
+      data: {
+        isValid: result.success,
+        lastTestedAt: now,
+        lastError: result.success ? null : result.error ?? "Test failed.",
+        model: configEntry.model ?? result.model,
+      },
+    });
+
+    return {
+      provider,
+      isValid: result.success,
+      latencyMs: result.latencyMs,
+      model: result.model,
+      message: result.success ? "Connection successful" : result.error ?? "Test failed.",
+    };
+  }
+
   if (!isLlmProvider(provider)) {
     throw new ProviderConfigError(
       "Provider testing is not supported yet.",
@@ -264,7 +321,7 @@ export async function testProviderConnection(
     isValid: result.success,
     latencyMs: result.latencyMs,
     model: result.model,
-    message: result.success ? "Connection successful" : result.error ?? "Test failed.",
+    message: result.message ?? (result.success ? "Connection successful" : result.error ?? "Test failed."),
   };
 }
 

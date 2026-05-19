@@ -50,7 +50,7 @@ const openAiErrorSchema = z.object({
   error: z.object({
     message: z.string().optional(),
     type: z.string().optional(),
-    code: z.string().optional(),
+    code: z.union([z.string(), z.number()]).optional(),
   }),
 });
 
@@ -88,18 +88,52 @@ export class OpenAIAdapter implements LLMProvider {
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const startedAt = Date.now();
     const model = request.model === "default" || !request.model ? this.resolveDefaultModel() : request.model;
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: this.getHeaders(),
-      body: JSON.stringify({
-        model,
-        messages: this.formatMessages(request),
-        temperature: request.temperature ?? 0.7,
-        max_tokens: request.maxTokens,
-        response_format:
-          request.responseFormat === "json" ? { type: "json_object" } : undefined,
-      }),
-    });
+    
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          model,
+          messages: this.formatMessages(request),
+          temperature: request.temperature ?? 0.7,
+          max_tokens: request.maxTokens,
+          response_format:
+            request.responseFormat === "json" ? { type: "json_object" } : undefined,
+        }),
+      });
+
+      if (!response.ok && request.responseFormat === "json") {
+        console.warn(`JSON mode failed for model ${model}. Retrying without JSON response_format...`);
+        response = await fetch(`${this.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: this.getHeaders(),
+          body: JSON.stringify({
+            model,
+            messages: this.formatMessages(request),
+            temperature: request.temperature ?? 0.7,
+            max_tokens: request.maxTokens,
+          }),
+        });
+      }
+    } catch (err) {
+      if (request.responseFormat === "json") {
+        console.warn(`Fetch failed with JSON mode. Retrying without JSON response_format:`, err);
+        response = await fetch(`${this.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: this.getHeaders(),
+          body: JSON.stringify({
+            model,
+            messages: this.formatMessages(request),
+            temperature: request.temperature ?? 0.7,
+            max_tokens: request.maxTokens,
+          }),
+        });
+      } else {
+        throw err;
+      }
+    }
 
     if (!response.ok) {
       throw await this.buildError(response, "Chat completion failed.");
@@ -209,6 +243,15 @@ export class OpenAIAdapter implements LLMProvider {
         model,
       };
     } catch (error) {
+      if (error instanceof LLMError && error.code === "RATE_LIMITED") {
+        return {
+          success: true,
+          latencyMs: Date.now() - startedAt,
+          model,
+          message: "Connection verified! Note: The selected model is currently rate-limited upstream, but your credentials are valid.",
+        };
+      }
+
       const message = error instanceof Error ? error.message : "Unknown error";
 
       return {

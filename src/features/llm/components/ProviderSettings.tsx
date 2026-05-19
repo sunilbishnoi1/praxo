@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactElement } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Eye, EyeOff, Plug, ShieldCheck, ShieldX } from "lucide-react";
 
@@ -162,7 +162,7 @@ const PROVIDER_DESCRIPTIONS: Record<ProviderId, string> = {
   groq: "Low-latency Groq-hosted models.",
   openrouter: "Unified gateway for multiple models.",
   ollama: "Local Ollama runtime.",
-  deepgram: "Speech-to-text provider for live sessions.",
+  deepgram: "Shared speech provider for live transcription and realistic TTS.",
 };
 
 const AI_PROVIDER_ORDER: ProviderId[] = [
@@ -181,6 +181,7 @@ const TESTABLE_PROVIDERS: ProviderId[] = [
   "groq",
   "openrouter",
   "ollama",
+  "deepgram",
 ];
 
 function formatLastTested(value: string | null): string {
@@ -245,6 +246,15 @@ export function ProviderSettings({
     AI_PROVIDER_ORDER[0],
   );
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setHasMounted(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const providerMap = useMemo(
     () => new Map(providers.map((provider) => [provider.provider, provider])),
@@ -447,7 +457,7 @@ export function ProviderSettings({
     const isPending = pending[provider.provider];
     const message = messages[provider.provider];
     const canTest =
-      TESTABLE_PROVIDERS.includes(provider.provider) && provider.isConfigured;
+      hasMounted && TESTABLE_PROVIDERS.includes(provider.provider) && provider.isConfigured;
     const showApiKey = Boolean(showSecrets[provider.provider]);
 
     return (
@@ -593,7 +603,7 @@ export function ProviderSettings({
           <Button
             variant="ghost"
             onClick={() => handleDelete(provider.provider)}
-            disabled={isPending || !provider.isConfigured}
+            disabled={isPending || !hasMounted || !provider.isConfigured}
           >
             Remove
           </Button>
@@ -640,7 +650,7 @@ export function ProviderSettings({
           <div>
             <h3 className="text-subheading">Voice provider</h3>
             <p className="text-body text-muted-foreground">
-              Configure speech-to-text used during live sessions.
+              Configure the shared Deepgram key used for transcription and text-to-speech.
             </p>
           </div>
           {renderProviderCard(deepgramProvider)}

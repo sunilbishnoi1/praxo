@@ -50,6 +50,7 @@ export type ConnectionTestResult = {
   latencyMs: number;
   model: string;
   error?: string;
+  message?: string;
 };
 
 export type ModelInfo = {
