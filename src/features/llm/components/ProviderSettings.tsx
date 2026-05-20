@@ -2,8 +2,7 @@
 
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-import { Eye, EyeOff, Plug, ShieldCheck, ShieldX } from "lucide-react";
+import { Eye, EyeOff, Plug, ShieldCheck, ShieldX, Key, Cpu, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,7 @@ const PROVIDER_FIELDS: Record<ProviderId, ProviderField[]> = {
   openai: [
     {
       key: "apiKey",
-      label: "API key",
+      label: "API Key",
       type: "password",
       helper: "Stored encrypted. Re-enter to replace.",
     },
@@ -61,14 +60,14 @@ const PROVIDER_FIELDS: Record<ProviderId, ProviderField[]> = {
     },
     {
       key: "model",
-      label: "Default model",
+      label: "Default Model",
       helper: "Optional. Overrides server default.",
     },
   ],
   anthropic: [
     {
       key: "apiKey",
-      label: "API key",
+      label: "API Key",
       type: "password",
       helper: "Stored encrypted. Re-enter to replace.",
     },
@@ -79,46 +78,46 @@ const PROVIDER_FIELDS: Record<ProviderId, ProviderField[]> = {
     },
     {
       key: "model",
-      label: "Default model",
+      label: "Default Model",
       helper: "Optional. Overrides server default.",
     },
   ],
   gemini: [
     {
       key: "apiKey",
-      label: "API key",
+      label: "API Key",
       type: "password",
       helper: "Stored encrypted. Re-enter to replace.",
     },
     {
       key: "model",
-      label: "Default model",
+      label: "Default Model",
       helper: "Optional. Overrides server default.",
     },
   ],
   groq: [
     {
       key: "apiKey",
-      label: "API key",
+      label: "API Key",
       type: "password",
       helper: "Stored encrypted. Re-enter to replace.",
     },
     {
       key: "model",
-      label: "Default model",
+      label: "Default Model",
       helper: "Optional. Overrides server default.",
     },
   ],
   openrouter: [
     {
       key: "apiKey",
-      label: "API key",
+      label: "API Key",
       type: "password",
       helper: "Stored encrypted. Re-enter to replace.",
     },
     {
       key: "model",
-      label: "Default model",
+      label: "Default Model",
       helper: "Optional. Overrides server default.",
     },
   ],
@@ -126,20 +125,20 @@ const PROVIDER_FIELDS: Record<ProviderId, ProviderField[]> = {
     { key: "baseUrl", label: "Base URL", helper: "Local Ollama server URL." },
     {
       key: "model",
-      label: "Default model",
+      label: "Default Model",
       helper: "Optional. Overrides server default.",
     },
   ],
   deepgram: [
     {
       key: "apiKey",
-      label: "API key",
+      label: "API Key",
       type: "password",
       helper: "Stored encrypted. Re-enter to replace.",
     },
     {
       key: "model",
-      label: "Default model",
+      label: "Default Model",
       helper: "Optional. Overrides server default.",
     },
   ],
@@ -441,7 +440,7 @@ export function ProviderSettings({
 
   if (!activeProviderStatus) {
     return (
-      <section className="rounded-card border border-dashed border-border bg-surface px-card py-card text-body text-muted-foreground">
+      <section className="rounded-lg border border-dashed border-border bg-card px-card py-card text-body text-muted-foreground">
         Provider settings are unavailable.
       </section>
     );
@@ -461,59 +460,59 @@ export function ProviderSettings({
     const showApiKey = Boolean(showSecrets[provider.provider]);
 
     return (
-      <Card key={provider.provider} className="flex h-full flex-col">
-        <CardHeader className="gap-3">
+      <Card key={provider.provider} className="flex h-full flex-col border-border bg-card">
+        <CardHeader className="gap-3 border-b border-border bg-muted/20">
           <div className="flex items-start justify-between gap-element">
             <div>
-              <CardTitle>{PROVIDER_LABELS[provider.provider]}</CardTitle>
-              <CardDescription>
+              <CardTitle className="font-display text-xl font-bold flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-brand-500" />
+                {PROVIDER_LABELS[provider.provider]}
+              </CardTitle>
+              <CardDescription className="text-muted-foreground mt-1">
                 {PROVIDER_DESCRIPTIONS[provider.provider]}
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant={provider.isConfigured ? "default" : "muted"}>
-                {provider.isConfigured ? "Configured" : "Not configured"}
+              <Badge variant={provider.isConfigured ? "success" : "muted"} className="text-[10px] font-semibold">
+                {provider.isConfigured ? "Configured" : "Not Configured"}
               </Badge>
               {provider.isConfigured ? (
-                <Badge variant={provider.isValid ? "success" : "warning"}>
-                  {provider.isValid ? "Validated" : "Needs test"}
+                <Badge variant={provider.isValid ? "success" : "warning"} className="text-[10px] font-semibold">
+                  {provider.isValid ? "Validated" : "Needs Test"}
                 </Badge>
               ) : null}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-element text-caption text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Plug className="h-4 w-4" aria-hidden />
+          <div className="flex flex-wrap items-center gap-element text-caption text-muted-foreground pt-1">
+            <div className="flex items-center gap-2 font-medium">
+              <Cpu className="h-4 w-4 text-accent-600" aria-hidden />
               <span>Model: {provider.model ?? "Use server default"}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 font-medium">
               {provider.isValid ? (
-                <ShieldCheck
-                  className="h-4 w-4 text-score-excellent"
-                  aria-hidden
-                />
+                <ShieldCheck className="h-4 w-4 text-emerald-500" aria-hidden />
               ) : (
-                <ShieldX className="h-4 w-4 text-score-average" aria-hidden />
+                <ShieldX className="h-4 w-4 text-amber-500" aria-hidden />
               )}
-              <span>Last test: {formatLastTested(provider.lastTestedAt)}</span>
+              <span>Last Test: {formatLastTested(provider.lastTestedAt)}</span>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-card pt-6">
           {fields.map((field) => {
             const isApiKey = field.key === "apiKey";
             const placeholder =
               isApiKey && provider.isConfigured && values.apiKey.length === 0
-                ? "Saved (hidden)"
+                ? "••••••••••••••••••••••••••••••••"
                 : "";
             const helperText =
               isApiKey && !provider.isConfigured ? "" : field.helper;
 
             return (
-              <div key={`${provider.provider}-${field.key}`}>
-                <Label htmlFor={`${provider.provider}-${field.key}`}>
+              <div key={`${provider.provider}-${field.key}`} className="flex flex-col gap-1.5">
+                <Label htmlFor={`${provider.provider}-${field.key}`} className="font-semibold text-body">
                   {field.label}
                 </Label>
                 <div className="relative">
@@ -542,7 +541,7 @@ export function ProviderSettings({
                     }
                     aria-label={`${PROVIDER_LABELS[provider.provider]} ${field.label}`}
                   />
-                  {isApiKey && values.apiKey.length > 0 ? (
+                  {isApiKey && (values.apiKey.length > 0 || (provider.isConfigured && values.apiKey.length === 0)) ? (
                     <Button
                       type="button"
                       variant="ghost"
@@ -564,7 +563,7 @@ export function ProviderSettings({
                   ) : null}
                 </div>
                 {helperText ? (
-                  <p className="mt-1 text-caption text-muted-foreground">
+                  <p className="text-caption text-muted-foreground">
                     {helperText}
                   </p>
                 ) : null}
@@ -574,10 +573,10 @@ export function ProviderSettings({
 
           {message ? (
             <div
-              className={`rounded-button border px-3 py-2 text-caption ${
+              className={`rounded-lg border px-3 py-2 text-caption font-medium ${
                 message.type === "success"
-                  ? "border-score-excellent/30 bg-score-excellent/10 text-score-excellent"
-                  : "border-score-bad/30 bg-score-bad/10 text-score-bad"
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
               }`}
               role="status"
             >
@@ -586,24 +585,27 @@ export function ProviderSettings({
           ) : null}
         </CardContent>
 
-        <CardFooter className="mt-auto flex flex-wrap gap-element">
+        <CardFooter className="mt-auto flex flex-wrap gap-element p-card border-t border-border bg-muted/10">
           <Button
             onClick={() => handleSave(provider.provider)}
             disabled={isPending}
+            className="bg-brand-500 hover:bg-brand-600 text-white font-semibold"
           >
-            Save
+            Save Credentials
           </Button>
           <Button
             variant="secondary"
             onClick={() => handleTest(provider.provider)}
             disabled={isPending || !canTest}
+            className="font-semibold"
           >
-            Test connection
+            Test Connection
           </Button>
           <Button
             variant="ghost"
             onClick={() => handleDelete(provider.provider)}
             disabled={isPending || !hasMounted || !provider.isConfigured}
+            className="text-red-500 hover:text-red-600 hover:bg-red-500/10 font-semibold"
           >
             Remove
           </Button>
@@ -614,13 +616,17 @@ export function ProviderSettings({
 
   return (
     <section className="flex flex-col gap-element">
-      <div className="space-y-2">
-        <h2 className="text-subheading">Provider status</h2>
+      <div className="space-y-2 border-b border-border pb-stack-md">
+        <h2 className="font-display text-2xl font-bold flex items-center gap-2">
+          <Key className="h-6 w-6 text-brand-700" />
+          AI Provider Settings
+        </h2>
         <p className="text-body text-muted-foreground">
-          Connect an LLM provider, set defaults, and verify connectivity.
+          Manage your external LLM endpoints, credentials, models, and latency settings.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+
+      <div className="flex flex-wrap gap-2 pt-2">
         {aiProviders.map((provider) => {
           const isActive = provider.provider === activeProvider;
 
@@ -630,10 +636,10 @@ export function ProviderSettings({
               type="button"
               onClick={() => setActiveProvider(provider.provider)}
               className={cn(
-                "rounded-button border px-3 py-2 text-body transition-colors",
+                "rounded-lg border px-4 py-2 text-body transition-all active:scale-98 font-semibold cursor-pointer",
                 isActive
-                  ? "border-border bg-surface-raised text-foreground shadow-sm"
-                  : "border-border bg-surface text-muted-foreground hover:text-foreground",
+                  ? "border-brand-500/40 bg-brand-500/10 text-brand-700 shadow-sm"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               aria-pressed={isActive}
             >
@@ -643,23 +649,27 @@ export function ProviderSettings({
         })}
       </div>
 
-      {renderProviderCard(activeProviderStatus)}
+      <div className="pt-2">
+        {renderProviderCard(activeProviderStatus)}
+      </div>
 
       {deepgramProvider ? (
-        <div className="space-y-3">
+        <div className="space-y-3 pt-stack-lg border-t border-border mt-4">
           <div>
-            <h3 className="text-subheading">Voice provider</h3>
+            <h3 className="font-display text-xl font-bold flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-accent-600" />
+              Voice Service Integration
+            </h3>
             <p className="text-body text-muted-foreground">
-              Configure the shared Deepgram key used for transcription and text-to-speech.
+              Configure Deepgram credentials for low-latency voice detection and speech generation.
             </p>
           </div>
           {renderProviderCard(deepgramProvider)}
         </div>
       ) : null}
 
-      <p className="text-caption text-muted-foreground">
-        Changes are saved immediately. Test connectivity after updating keys or
-        models.
+      <p className="text-caption text-muted-foreground/80 mt-2 font-medium">
+        Changes take effect immediately. Connectivity metrics represent live latency scores to API host nodes.
       </p>
     </section>
   );

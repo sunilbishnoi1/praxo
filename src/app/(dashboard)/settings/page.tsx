@@ -1,6 +1,4 @@
 import type { ReactElement } from "react";
-
-import { PageHeader } from "@/components/shared/PageHeader";
 import { listProviderStatuses } from "@/features/llm";
 import { ProviderSettings } from "@/features/llm/components/ProviderSettings";
 
@@ -8,12 +6,19 @@ export default async function SettingsPage(): Promise<ReactElement> {
   const providers = await listProviderStatuses();
 
   return (
-    <div className="flex flex-col gap-section">
-      <PageHeader
-        title="Settings"
-        description="Manage your AI providers and test connectivity."
-      />
-      <ProviderSettings initialProviders={providers} />
-    </div>
+    <>
+      {/* Header Section */}
+      <header className="flex justify-between items-end border-b border-border pb-stack-md shrink-0">
+        <div className="flex flex-col gap-1">
+          <p className="font-label-sm text-label-sm text-muted-foreground/80 uppercase tracking-wider">System</p>
+          <h2 className="font-display text-4xl font-bold text-foreground">Settings</h2>
+        </div>
+      </header>
+
+      {/* Main Settings Panel */}
+      <div className="flex flex-col gap-stack-lg flex-1">
+        <ProviderSettings initialProviders={providers} />
+      </div>
+    </>
   );
 }

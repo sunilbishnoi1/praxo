@@ -8,7 +8,7 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { ArrowLeft, Clock3, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Clock3, Loader2, Sparkles, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -514,7 +514,7 @@ export function InterviewSession({
           return;
         }
       } catch {
-        // fall through to empty transcript handling below
+        // fall through to empty transcript handling
       }
     }
 
@@ -706,7 +706,7 @@ export function InterviewSession({
     return (
       <div className="flex min-h-[60vh] items-center justify-center gap-element text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin text-brand-500" aria-hidden />
-        <p className="text-body">Loading voice session...</p>
+        <p className="text-body font-semibold">Configuring voice socket...</p>
       </div>
     );
   }
@@ -717,8 +717,8 @@ export function InterviewSession({
         title="Unable to start voice session"
         message={error}
         action={
-          <Button asChild>
-            <Link href="/session/new">Back to configuration</Link>
+          <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+            <Link href="/session/new">Back to Configuration</Link>
           </Button>
         }
       />
@@ -731,8 +731,8 @@ export function InterviewSession({
         title="Session not found"
         message="The requested interview session could not be loaded."
         action={
-          <Button asChild>
-            <Link href="/session/new">Start a new session</Link>
+          <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+            <Link href="/session/new">Start New Session</Link>
           </Button>
         }
       />
@@ -742,84 +742,84 @@ export function InterviewSession({
   const sessionLabel = `${session.roundType.replace(/-/g, " ")} · ${session.difficulty}`;
 
   return (
-    <div className="flex flex-col gap-section pb-[96px]">
-      <header className="sticky top-0 z-40 -mx-page-x border-b border-border bg-surface-overlay/85 px-page-x py-4 backdrop-blur">
-        <div className="flex items-center justify-between gap-element">
-          <div className="flex items-center gap-element text-caption text-muted-foreground">
-            <span className="rounded-full border border-border bg-background px-3 py-1 font-semibold uppercase tracking-[0.18em] text-brand-500">
-              {session.roundType.replace(/-/g, " ")}
-            </span>
-            <span className="rounded-full border border-border bg-background px-3 py-1">
-              {session.difficulty}
-            </span>
-          </div>
-          <div className="flex items-center gap-element rounded-full border border-border bg-background px-4 py-2 font-mono text-body text-foreground">
+    <div className="flex flex-col gap-stack-lg pb-[112px] h-full">
+      {/* Sticky Header */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/85 px-4 py-4 backdrop-blur flex justify-between items-center shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 font-bold text-caption text-brand-700 uppercase tracking-wider">
+            {session.roundType.replace(/-/g, " ")}
+          </span>
+          <span className="rounded-full border border-border bg-card px-3 py-1 font-semibold text-caption text-muted-foreground uppercase tracking-wider">
+            {session.difficulty}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 font-mono text-body-md font-bold text-foreground">
             <Clock3 className="h-4 w-4 text-brand-500" aria-hidden />
             {new Date(Math.max(elapsedMs, 0)).toISOString().slice(14, 19)}
           </div>
-          <div className="flex items-center gap-element">
-            <div className="rounded-full border border-border bg-background px-3 py-1 text-caption text-muted-foreground">
-              {session.questions[currentQuestionIndex]?.questionType ??
-                "interview"}
-            </div>
-            <Button variant="outline" onClick={endInterview}>
-              End Session
-            </Button>
-          </div>
+          <Button variant="outline" className="border-red-500 text-red-500 hover:bg-red-500/10 font-semibold" onClick={endInterview}>
+            End Session
+          </Button>
         </div>
       </header>
 
-      <div className="grid gap-section lg:grid-cols-[8fr_4fr]">
-        <div className="space-y-section">
-          <div className="rounded-card border border-border bg-surface-raised px-card py-card">
-            <div className="mb-4 flex items-center justify-between gap-element">
-              <Button variant="ghost" size="sm" asChild>
+      {/* Main Grid */}
+      <div className="grid gap-stack-md lg:grid-cols-[7fr_5fr] items-stretch flex-1 min-h-0">
+        <div className="flex flex-col gap-stack-md justify-between">
+          <div className="rounded-lg border border-border bg-card p-stack-md flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-element">
+              <Button variant="ghost" size="sm" asChild className="hover:bg-muted font-semibold">
                 <Link href="/session/new">
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-                  Back
+                  <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
+                  Configure
                 </Link>
               </Button>
-              <div className="flex items-center gap-element text-caption text-muted-foreground">
-                <Sparkles className="h-4 w-4 text-accent-500" aria-hidden />
+              <div className="flex items-center gap-1.5 font-semibold text-caption text-muted-foreground">
+                <Sparkles className="h-4 w-4 text-accent-600 animate-pulse" aria-hidden />
                 {thinkingLabel}
               </div>
             </div>
 
-            <div className="space-y-element">
+            <div className="space-y-3">
               <button
                 type="button"
                 onClick={() => setQuestionRevealed((current) => !current)}
-                className="flex w-full items-center justify-between rounded-card border border-border bg-surface px-element py-element text-left"
+                className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/20 hover:bg-muted/40 px-4 py-3 text-left transition-colors duration-200 cursor-pointer"
               >
-                <span className="text-body font-semibold">
-                  Reveal Question Text
+                <span className="text-body font-bold text-foreground">
+                  Reveal Live Prompt
                 </span>
-                <span className="text-caption text-muted-foreground">
-                  {questionRevealed ? "Hide" : "Show"}
+                <span className="text-caption text-muted-foreground font-semibold flex items-center gap-1">
+                  {questionRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {questionRevealed ? "Hide Prompt" : "Show Prompt"}
                 </span>
               </button>
 
-              {questionRevealed ? (
-                <Card className="p-card">
-                  <p className="text-caption uppercase tracking-[0.18em] text-muted-foreground">
-                    Prompt
+              {questionRevealed && (
+                <div className="p-4 rounded-lg border border-brand-500/20 bg-brand-500/5 transition-all duration-300">
+                  <p className="text-[10px] uppercase tracking-wider text-brand-700 font-bold">
+                    Active Question
                   </p>
-                  <p className="mt-2 text-subheading text-foreground">
+                  <p className="mt-2 text-body font-medium text-foreground leading-relaxed">
                     {currentQuestionText}
                   </p>
-                </Card>
-              ) : null}
+                </div>
+              )}
             </div>
           </div>
 
-          <VoiceVisualizer
-            status={voiceStatus}
-            level={level}
-            questionText={currentQuestionText}
-          />
+          <div className="flex-1 flex flex-col justify-center min-h-[300px]">
+            <VoiceVisualizer
+              status={voiceStatus}
+              level={level}
+              questionText={currentQuestionText}
+            />
+          </div>
         </div>
 
-        <div className="h-[calc(100vh-250px)] lg:sticky lg:top-[112px]">
+        {/* Scrollable live transcript */}
+        <div className="h-[550px] lg:h-auto border border-border rounded-lg bg-card overflow-hidden">
           <TranscriptPanel
             messages={transcriptMessages}
             interimTranscript={interimTranscript}
@@ -827,8 +827,9 @@ export function InterviewSession({
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-surface-overlay/90 px-page-x py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-element">
+      {/* Floating Bottom Dashboard Controller */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 px-margin-desktop py-4 backdrop-blur shadow-md shrink-0">
+        <div className="max-w-[1200px] mx-auto flex w-full flex-col gap-3">
           <VoiceControls
             micActive={micActive}
             paused={paused}
@@ -850,7 +851,7 @@ export function InterviewSession({
             }
             meterLevel={level.level}
           />
-          <div className="flex items-center justify-between gap-element text-caption text-muted-foreground">
+          <div className="flex items-center justify-between gap-element text-caption text-muted-foreground/80 font-bold uppercase tracking-wider">
             <span>{sessionLabel}</span>
             <span>
               {sessionComplete

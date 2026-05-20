@@ -23,27 +23,28 @@ export function TranscriptPanel({
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [messages, interimTranscript]);
+
   return (
-    <section className="flex h-full flex-col rounded-card border border-border bg-surface-raised">
-      <div className="flex items-center justify-between border-b border-border px-card py-element">
-        <div className="flex items-center gap-element">
+    <section className="flex h-full flex-col rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-card py-element bg-muted/10">
+        <div className="flex items-center gap-2">
           <MessageSquareText
             className="h-4 w-4 text-muted-foreground"
             aria-hidden
           />
-          <h2 className="text-subheading">Transcript</h2>
+          <h2 className="text-body font-display font-bold text-foreground">Transcript</h2>
         </div>
-        <p className="text-caption text-muted-foreground">
-          Live conversation log
+        <p className="text-caption text-muted-foreground font-semibold">
+          Live Conversation Log
         </p>
       </div>
 
       <div
         ref={containerRef}
-        className="flex-1 space-y-element overflow-y-auto px-card py-card"
+        className="flex-1 space-y-3 overflow-y-auto px-card py-card bg-muted/5"
       >
         {messages.length === 0 ? (
-          <div className="rounded-button border border-dashed border-border bg-surface px-element py-card text-center text-body text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-border bg-card px-4 py-6 text-center text-caption text-muted-foreground font-medium">
             The session transcript will appear here as the interview progresses.
           </div>
         ) : (
@@ -51,43 +52,43 @@ export function TranscriptPanel({
             <div
               key={message.id}
               className={cn(
-                "rounded-card border px-element py-element text-body",
+                "rounded-lg border px-4 py-3 text-body font-medium transition-all duration-200",
                 message.speaker === "interviewer"
-                  ? "border-brand-500/15 bg-brand-500/5"
+                  ? "border-brand-500/15 bg-brand-500/5 shadow-[0_0_12px_rgba(242,106,46,0.02)]"
                   : message.speaker === "candidate"
-                    ? "border-score-excellent/15 bg-score-excellent/5"
-                    : "border-border bg-surface",
+                    ? "border-emerald-500/15 bg-emerald-500/5 shadow-[0_0_12px_rgba(16,185,129,0.02)]"
+                    : "border-border bg-card",
               )}
             >
               <div className="mb-2 flex items-center justify-between gap-element">
-                <span className="text-caption uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
                   {message.speaker}
                 </span>
-                <span className="text-caption text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground font-medium">
                   {new Date(message.timestamp).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
                 </span>
               </div>
-              <p className="leading-relaxed text-foreground">{message.text}</p>
+              <p className="leading-relaxed text-foreground text-caption">{message.text}</p>
             </div>
           ))
         )}
 
-        {interimTranscript ? (
-          <div className="rounded-card border border-accent-500/20 bg-accent-500/5 px-element py-element text-body text-foreground">
+        {interimTranscript && (
+          <div className="rounded-lg border border-accent-500/20 bg-accent-500/5 px-4 py-3 text-body text-foreground animate-pulse">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-caption uppercase tracking-[0.18em] text-accent-500">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-accent-600">
                 Listening
               </span>
-              <span className="text-caption text-muted-foreground">
+              <span className="text-[10px] text-muted-foreground font-medium">
                 Interim
               </span>
             </div>
-            <p>{interimTranscript}</p>
+            <p className="text-caption font-medium leading-relaxed">{interimTranscript}</p>
           </div>
-        ) : null}
+        )}
       </div>
     </section>
   );

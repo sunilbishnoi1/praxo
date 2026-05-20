@@ -75,6 +75,14 @@ const config: Config = {
         "score-large": ["3.5rem", { lineHeight: "1", fontWeight: "700" }],
       },
       spacing: {
+        "stack-sm": "8px",
+        "margin-desktop": "40px",
+        "stack-lg": "32px",
+        "stack-md": "16px",
+        "margin-mobile": "16px",
+        "base": "4px",
+        "gutter": "24px",
+        "container-max": "1280px",
         "page-x": "2rem",
         "page-y": "1.5rem",
         section: "2rem",
@@ -82,6 +90,10 @@ const config: Config = {
         element: "0.75rem",
       },
       borderRadius: {
+        "DEFAULT": "0.125rem",
+        "lg": "0.25rem",
+        "xl": "0.5rem",
+        "full": "0.75rem",
         card: "0.75rem",
         button: "0.5rem",
         badge: "9999px",
@@ -89,6 +101,7 @@ const config: Config = {
       },
     },
   },
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   plugins: [require("tailwindcss-animate")],
 };
 
