@@ -1,19 +1,29 @@
 <p align="center">
-  <h1 align="center">Praxo</h1>
-  <p align="center">
-    <strong>Open-source, self-hostable AI mock interview platform.</strong>
-  </p>
-  <p align="center">
-    Practice interviews with AI. Get honest feedback. Improve deliberately.
-  </p>
+  <img src="https://img.shields.io/badge/version-0.1.0--beta-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License" />
+  <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node" />
+  <img src="https://img.shields.io/badge/next.js-14+-000.svg" alt="Next.js" />
+  <img src="https://img.shields.io/badge/typescript-5+-3178C6.svg" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/prisma-5+-2D3748.svg" alt="Prisma" />
+  <img src="https://img.shields.io/badge/docker-ready-2496ED.svg" alt="Docker" />
+</p>
+
+<h1 align="center">Praxo</h1>
+
+<p align="center">
+  <strong>Open-source, self-hostable AI mock interview platform.</strong>
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#features">Features</a> •
-  <a href="docs/ARCHITECTURE.md">Architecture</a> •
-  <a href="docs/SELF_HOSTING.md">Self-Hosting</a> •
-  <a href="CONTRIBUTING.md">Contributing</a>
+  Practice interviews with AI. Get honest feedback. Improve deliberately.
+</p>
+
+<p align="center">
+  <a href="#quick-start"><strong>Quick Start</strong></a> ·
+  <a href="#features"><strong>Features</strong></a> ·
+  <a href="#tech-stack"><strong>Tech Stack</strong></a> ·
+  <a href="#deployment-modes"><strong>Deployment</strong></a> ·
+  <a href="#contributing"><strong>Contributing</strong></a>
 </p>
 
 ---
@@ -21,16 +31,6 @@
 ## What is Praxo?
 
 Praxo is a **BYOK (Bring Your Own Key)** AI interview coach that conducts live voice interviews, evaluates your answers in real time, and delivers detailed post-session reports. It is **not** a cheating tool — it is a **deliberate practice platform** for job seekers who want to improve privately.
-
-### Why Praxo?
-
-Every existing interview prep tool is either:
-- **Cloud-only** — your mock answers are stored on someone else's server
-- **Text-only** — no voice, no real interview pressure
-- **Shallow** — no scoring, no follow-ups, no structured feedback
-- **Missing pieces** — no code execution, no resume-aware questions, no progress tracking
-
-Praxo combines **voice pipeline + live scoring + coding sandbox + multi-dimensional reports**, all self-hostable, all BYOK, data stays on your machine.
 
 ### Key Principles
 
@@ -46,7 +46,7 @@ Praxo combines **voice pipeline + live scoring + coding sandbox + multi-dimensio
 
 ### Option A: Lite Mode (No Docker)
 
-Requirements: Node.js 20+, npm
+**Requirements:** Node.js 20+, npm
 
 ```bash
 git clone https://github.com/praxo/praxo.git
@@ -60,7 +60,7 @@ npm run dev         # Starts on http://localhost:3000
 
 ### Option B: Full Mode (Docker)
 
-Requirements: Docker, Docker Compose
+**Requirements:** Docker, Docker Compose
 
 ```bash
 git clone https://github.com/praxo/praxo.git
@@ -72,7 +72,7 @@ docker compose up
 # Judge0:  http://localhost:2358 (code execution)
 ```
 
-### Option C: One-Line Install (Coming Soon)
+### Option C: One-Line Install *(Coming Soon)*
 
 ```bash
 # Linux/macOS
@@ -90,19 +90,19 @@ irm https://get.praxo.dev/install.ps1 | iex
 
 | Feature | Description |
 |---|---|
-| 🎙️ **Live Voice Interviews** | Real-time STT + TTS conversation with an AI interviewer persona |
-| 📋 **Session Configuration** | Upload resume, paste JD, set difficulty, choose round type |
-| 📊 **Fluency Tracking** | WPM, pause detection, filler word counting, coherence scoring |
-| 📝 **Post-Session Reports** | Per-question scoring, ideal answers, improvement tips, company-fit estimate |
-| 📈 **Progress Tracker** | Score history, trend graphs, improvement analytics across sessions |
+| Live Voice Interviews | Real-time STT + TTS conversation with an AI interviewer persona |
+| Session Configuration | Upload resume, paste JD, set difficulty, choose round type |
+| Fluency Tracking | WPM, pause detection, filler word counting, coherence scoring |
+| Post-Session Reports | Per-question scoring, ideal answers, improvement tips, company-fit estimate |
+| Progress Tracker | Score history, trend graphs, improvement analytics across sessions |
 
 ### Phase 2 — Extended Rounds
 
 | Feature | Description |
 |---|---|
-| 💻 **Code Editor** | In-browser code editing for DSA round warm-up |
-| ▶️ **Code Execution** | Run code with I/O via Judge0 (sandboxed, self-hosted) |
-| 🎨 **Whiteboard** | Excalidraw-style whiteboard for system design rounds |
+| Code Editor | In-browser code editing for DSA round warm-up |
+| Code Execution | Run code with I/O via Judge0 (sandboxed, self-hosted) |
+| Whiteboard | Excalidraw-style whiteboard for system design rounds |
 
 ### Round Types
 
@@ -127,8 +127,8 @@ irm https://get.praxo.dev/install.ps1 | iex
 
 | Mode | Database | Code Execution | Requirements | Best For |
 |---|---|---|---|---|
-| **Lite** | SQLite | ❌ Disabled | Node.js 20+ | Quick start, trying it out |
-| **Full** | PostgreSQL | ✅ Judge0 | Docker | Full experience, self-hosting |
+| **Lite** | SQLite | Disabled | Node.js 20+ | Quick start, trying it out |
+| **Full** | PostgreSQL | Judge0 | Docker | Full experience, self-hosting |
 
 Both modes share the same codebase. Prisma handles the database abstraction. Switch between modes by changing `DATABASE_URL` in `.env`.
 
@@ -149,35 +149,9 @@ Both modes share the same codebase. Prisma handles the database abstraction. Swi
 
 ---
 
-## Documentation
-
-| Document | Description |
-|---|---|
-| [PRD](docs/PRD.md) | Product requirements, user journeys, success metrics |
-| [Architecture](docs/ARCHITECTURE.md) | System diagram, data flows, service boundaries |
-| [Data Models](docs/DATA_MODELS.md) | Full Prisma schema, table relationships |
-| [API Spec](docs/API_SPEC.md) | Every endpoint, request/response shapes |
-| [Voice Pipeline](docs/VOICE_PIPELINE.md) | STT/TTS design, state machine, edge cases |
-| [Scoring Engine](docs/SCORING_ENGINE.md) | Scoring prompts, dimension weights, output format |
-| [LLM Abstraction](docs/LLM_ABSTRACTION.md) | Provider interface, adapter pattern, streaming |
-| [Round Types](docs/ROUND_TYPES.md) | Per-round flow, prompt strategy, scoring weights |
-| [Personalization](docs/PERSONALIZATION.md) | Resume/JD parsing, gap analysis |
-| [Self-Hosting](docs/SELF_HOSTING.md) | Docker setup, env vars, first-run guide |
-| [Design System](docs/DESIGN_SYSTEM.md) | Tokens, component conventions, Pencil-first workflow |
-| [Phase Plan](docs/PHASE_PLAN.md) | Build sequence, dependencies, complexity estimates |
-| [Engineering Rules](docs/ENGINEERING_RULES.md) | Coding standards, patterns, checklists |
-
----
-
-## Screenshots
-
-> Screenshots will be added after Pencil wireframes are finalized and Phase 1 UI is implemented.
-
----
-
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit standards, and contribution guidelines.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commit standards, and contribution guidelines.
 
 ---
 
