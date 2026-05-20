@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getDefaultUserId } from "@/features/llm";
 import { getRoundType } from "@/features/session";
 import type { SessionContext } from "@/features/session";
+import { ScoringService } from "@/features/scoring";
 
 function parseJsonArray(value: string | null): string[] {
   if (!value) {
@@ -50,6 +51,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sessionId?: string;
       questionId?: string;
       answerText?: string;
+      fluency?: {
+        wordsPerMinute: number;
+        totalWords: number;
+        totalPauses: number;
+        longestPauseMs: number;
+        fillerWordCount: number;
+        fillerWords: Array<{ word: string; count: number }>;
+        speakingTimeMs: number;
+        silenceTimeMs: number;
+      };
     };
 
     if (!body.sessionId || !body.questionId) {
@@ -95,6 +106,73 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const answerText = body.answerText?.trim() ?? "";
     const currentQuestion = session.questions[questionIndex];
     const nextQuestion = session.questions[questionIndex + 1] ?? null;
+
+    // Check if answer already exists to prevent duplication
+    const existingAnswer = await prisma.answer.findUnique({
+      where: { questionId: body.questionId },
+    });
+
+    if (!existingAnswer && answerText.length > 0) {
+      let expectedKeyPoints: string[] = [];
+      try {
+        if (currentQuestion.expectedKeyPoints) {
+          expectedKeyPoints = JSON.parse(currentQuestion.expectedKeyPoints);
+        }
+      } catch {}
+
+      const fluency = body.fluency || {
+        wordsPerMinute: 0,
+        totalWords: 0,
+        totalPauses: 0,
+        longestPauseMs: 0,
+        fillerWordCount: 0,
+        fillerWords: [],
+        speakingTimeMs: 0,
+        silenceTimeMs: 0,
+      };
+
+      const scores = await ScoringService.scoreAnswer({
+        questionText: currentQuestion.text,
+        answerTranscript: answerText,
+        expectedKeyPoints,
+        fluencyMetrics: {
+          wordsPerMinute: fluency.wordsPerMinute,
+          totalWords: fluency.totalWords,
+          totalPauses: fluency.totalPauses,
+          longestPauseMs: fluency.longestPauseMs,
+          fillerWordCount: fluency.fillerWordCount,
+          fillerWords: fluency.fillerWords,
+          coherenceScore: 0,
+          speakingTimeMs: fluency.speakingTimeMs,
+          silenceTimeMs: fluency.silenceTimeMs,
+        },
+        roundType: session.roundType,
+        difficulty: session.difficulty,
+        yearsOfExperience: session.yearsOfExperience ?? 0,
+        useJdForScoring: session.useJdForScoring,
+        jobDescriptionText: session.jobDescription?.rawText ?? "",
+        generateIdeal: session.generateIdealAnswer,
+        resumeContext: session.resume?.rawText ?? "",
+        jdContext: session.jobDescription?.rawText ?? "",
+        companyTier: session.targetCompanyTier ?? "general",
+      });
+
+      const updatedFluency = {
+        ...fluency,
+        coherenceScore: scores.dimensions.coherence,
+      };
+
+      await prisma.answer.create({
+        data: {
+          questionId: body.questionId!,
+          transcript: answerText,
+          audioDurationMs: fluency.speakingTimeMs || null,
+          fluencyMetrics: JSON.stringify(updatedFluency),
+          scores: JSON.stringify(scores),
+        },
+      });
+    }
+
     const shouldAskFollowUp = answerText.split(/\s+/).filter(Boolean).length < 80 || /uncertain|maybe|probably|not sure/i.test(answerText);
 
     if (shouldAskFollowUp && answerText.length > 0) {

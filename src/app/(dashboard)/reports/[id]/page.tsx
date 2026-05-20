@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   Loader2,
@@ -11,13 +11,13 @@ import {
   TrendingDown,
   Volume2,
   Lightbulb,
-  FileText,
   Calendar,
   Clock,
   Target,
-  ArrowRight,
-  TrendingUp,
-  Cpu
+  Award,
+  CheckCircle2,
+  AlertTriangle,
+  BookOpen
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,6 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,42 +64,76 @@ type QuestionType = {
   answered: boolean;
 };
 
-type SessionDetail = {
+type StudyRecommendation = {
+  topic: string;
+  resources: string[];
+  priority: "high" | "medium" | "low";
+};
+
+type ReportDetail = {
   id: string;
-  status: string;
-  roundType: string;
-  difficulty: string;
-  yearsOfExperience: number | null;
-  questionCount: number;
-  totalDurationMs: number | null;
-  overallScore: number | null;
-  resume?: { id: string; name: string } | null;
-  jobDescription?: { id: string; name: string } | null;
+  sessionId: string;
+  overallScore: number;
+  roundTypeScore: number;
+  dimensionAverages: {
+    relevance?: number;
+    depth?: number;
+    technicalAccuracy?: number;
+    starStructure?: number;
+    timeComplexity?: number;
+    coherence?: number;
+    fluency?: number;
+    [key: string]: number | undefined;
+  };
+  fluencySummary: {
+    averageWpm?: number;
+    totalFillerWords?: number;
+    totalPauses?: number;
+    wpmTrend?: string;
+    fillerTrend?: string;
+  };
+  strongestAnswerIds: string[];
+  weakestAnswerIds: string[];
+  companyFitScore?: number | null;
+  companyFitAnalysis?: string | null;
+  overallSummary: string;
+  keyStrengths: string[];
+  keyWeaknesses: string[];
+  studyRecommendations: StudyRecommendation[];
+  nextSessionFocus?: string | null;
   createdAt: string;
   questions: QuestionType[];
+  session: {
+    id: string;
+    roundType: string;
+    difficulty: string;
+    questionCount: number;
+    totalDurationMs: number | null;
+    resume?: { id: string; name: string } | null;
+    jobDescription?: { id: string; name: string } | null;
+  };
 };
 
 export default function ReportDetailPage(): ReactElement {
-  const router = useRouter();
   const { id } = useParams() as { id: string };
 
-  const [session, setSession] = useState<SessionDetail | null>(null);
+  const [report, setReport] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadReport(): Promise<void> {
       try {
-        const response = await fetch(`/api/sessions/${id}`);
+        const response = await fetch(`/api/reports/${id}`);
         const json = await response.json();
-        if (json.success && json.data?.session) {
-          setSession(json.data.session);
+        if (json.success && json.data?.report) {
+          setReport(json.data.report);
         } else {
-          setError(json.error?.message || "Failed to locate session report.");
+          setError(json.error?.message || "Failed to locate interview feedback report.");
         }
       } catch (err) {
-        console.error("Failed to load session:", err);
-        setError("Network error loading report details.");
+        console.error("Failed to load report:", err);
+        setError("Network error loading feedback report details.");
       } finally {
         setLoading(false);
       }
@@ -109,6 +142,7 @@ export default function ReportDetailPage(): ReactElement {
   }, [id]);
 
   function formatRoundName(round: string): string {
+    if (!round) return "";
     return round
       .split("-")
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -121,48 +155,9 @@ export default function ReportDetailPage(): ReactElement {
     return `${minutes}m`;
   }
 
-  // Dynamic derivation of grades & scores
-  const answeredQuestions = session?.questions.filter((q) => q.answered) || [];
-  const totalQuestions = session?.questions.length || 0;
-
-  const averageClarity = answeredQuestions.reduce((acc, q) => {
-    return acc + (q.answer?.scores?.clarity || 8);
-  }, 0) / Math.max(answeredQuestions.length, 1);
-
-  const averageDelivery = answeredQuestions.reduce((acc, q) => {
-    return acc + (q.answer?.scores?.delivery || 8);
-  }, 0) / Math.max(answeredQuestions.length, 1);
-
-  const calculatedScore = session?.overallScore || Math.round((averageClarity + averageDelivery) * 5);
-  
-  // Grade classification
-  let gradeLetter = "Grade B";
-  if (calculatedScore >= 90) gradeLetter = "Grade A+";
-  else if (calculatedScore >= 80) gradeLetter = "Grade A";
-  else if (calculatedScore >= 70) gradeLetter = "Grade B+";
-
-  // Dynamic Bento highlights derivation
-  const strongestQuestion = answeredQuestions.reduce<QuestionType | null>((prev, current) => {
-    if (!prev) return current;
-    const prevOverall = prev.answer?.scores?.overall || 8;
-    const currOverall = current.answer?.scores?.overall || 8;
-    return currOverall > prevOverall ? current : prev;
-  }, null);
-
-  const weakestQuestion = answeredQuestions.reduce<QuestionType | null>((prev, current) => {
-    if (!prev) return current;
-    const prevOverall = prev.answer?.scores?.overall || 8;
-    const currOverall = current.answer?.scores?.overall || 8;
-    return currOverall < prevOverall ? current : prev;
-  }, null);
-
-  const averageWpm = answeredQuestions.reduce((acc, q) => {
-    return acc + (q.answer?.fluencyMetrics?.wpm || 135);
-  }, 0) / Math.max(answeredQuestions.length, 1);
-
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-element">
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-brand-500" />
         <p className="text-body text-muted-foreground animate-pulse font-medium">
           Compiling report analysis...
@@ -171,7 +166,7 @@ export default function ReportDetailPage(): ReactElement {
     );
   }
 
-  if (error || !session) {
+  if (error || !report) {
     return (
       <ErrorState
         title="Report Not Found"
@@ -185,10 +180,52 @@ export default function ReportDetailPage(): ReactElement {
     );
   }
 
+  const overallScore = report.overallScore || 80;
+  
+  // Grade classification
+  let gradeLetter = "Grade B";
+  let gradeColor = "text-amber-600";
+  if (overallScore >= 90) {
+    gradeLetter = "Grade A+";
+    gradeColor = "text-emerald-500";
+  } else if (overallScore >= 80) {
+    gradeLetter = "Grade A";
+    gradeColor = "text-[#006783]";
+  } else if (overallScore >= 70) {
+    gradeLetter = "Grade B+";
+    gradeColor = "text-brand-700";
+  }
+
+  // Find Strongest and Weakest Questions based on report.strongestAnswerIds
+  const answeredQuestions = report.questions.filter((q) => q.answer);
+  
+  const strongestQuestion = answeredQuestions.find((q) => report.strongestAnswerIds.includes(q.id)) ||
+    answeredQuestions.reduce<QuestionType | null>((prev, current) => {
+      if (!prev) return current;
+      const prevScore = prev.answer?.scores?.overall || 0;
+      const currScore = current.answer?.scores?.overall || 0;
+      return currScore > prevScore ? current : prev;
+    }, null);
+
+  const weakestQuestion = answeredQuestions.find((q) => report.weakestAnswerIds.includes(q.id)) ||
+    answeredQuestions.reduce<QuestionType | null>((prev, current) => {
+      if (!prev) return current;
+      const prevScore = prev.answer?.scores?.overall || 0;
+      const currScore = current.answer?.scores?.overall || 0;
+      return currScore < prevScore ? current : prev;
+    }, null);
+
+  const avgWpm = report.fluencySummary.averageWpm || 135;
+
+  // SVG circular stroke calculation
+  const radius = 64;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (overallScore / 100) * circumference;
+
   return (
     <div className="flex flex-col gap-stack-lg flex-1">
       {/* Back Header */}
-      <div className="flex items-center justify-between border-b border-border pb-4">
+      <div className="flex items-center justify-between border-b border-border pb-4 shrink-0">
         <Button variant="ghost" size="sm" asChild className="hover:bg-muted font-semibold">
           <Link href="/reports">
             <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
@@ -198,10 +235,10 @@ export default function ReportDetailPage(): ReactElement {
         
         <div className="flex items-center gap-2">
           <Badge variant="muted" className="font-bold text-[10px] tracking-wider uppercase border-brand-500/30 bg-brand-500/5 text-brand-700">
-            {formatRoundName(session.roundType)}
+            {formatRoundName(report.session.roundType)}
           </Badge>
           <Badge variant="muted" className="font-bold text-[10px] tracking-wider uppercase border-border bg-card text-muted-foreground">
-            {session.difficulty}
+            {report.session.difficulty}
           </Badge>
         </div>
       </div>
@@ -210,7 +247,7 @@ export default function ReportDetailPage(): ReactElement {
       <section className="bg-card border border-border rounded-xl p-stack-lg flex flex-col md:flex-row items-center md:items-start justify-between relative overflow-hidden shadow-sm">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(242,106,46,0.06)_0%,_rgba(242,106,46,0)_60%)]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(167,58,0,0.06)_0%,_rgba(167,58,0,0)_60%)]"
         />
         <div className="flex-1 space-y-3 text-center md:text-left mb-6 md:mb-0 relative z-10">
           <Badge variant="muted" className="font-bold text-[10px] tracking-wider uppercase bg-brand-500/10 text-brand-700">
@@ -218,30 +255,52 @@ export default function ReportDetailPage(): ReactElement {
           </Badge>
           <h1 className="font-display text-4xl font-bold text-foreground">Interview Feedback Report</h1>
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-caption text-muted-foreground font-semibold mt-2">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               <Calendar className="h-4 w-4" />
-              {new Date(session.createdAt).toLocaleDateString([], {
+              {new Date(report.createdAt).toLocaleDateString([], {
                 month: "short",
                 day: "numeric",
                 year: "numeric",
               })}
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               <Clock className="h-4 w-4" />
-              {formatDuration(session.totalDurationMs)} Duration
+              {formatDuration(report.session.totalDurationMs)} Duration
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               <Target className="h-4 w-4" />
-              Role: {session.jobDescription?.name || session.resume?.name || "SDE"}
+              Role: {report.session.jobDescription?.name || report.session.resume?.name || "Senior Software Engineer"}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-col items-center shrink-0">
-          <div className="relative w-44 h-44 rounded-full border-4 border-muted flex items-center justify-center bg-card shadow-[0_0_24px_rgba(242,106,46,0.04)] before:absolute before:inset-0 before:rounded-full before:border-4 before:border-brand-500 before:border-t-transparent before:-rotate-45">
-            <div className="text-center">
-              <span className="font-display text-5xl font-bold text-brand-700 block">{calculatedScore}</span>
-              <span className="font-label-md text-label-md text-muted-foreground font-bold uppercase tracking-wider block mt-1">
+        {/* Circular Progress Bar (Wow element) */}
+        <div className="flex flex-col items-center shrink-0 relative">
+          <div className="relative w-40 h-40 flex items-center justify-center">
+            <svg className="absolute w-full h-full -rotate-90">
+              <circle
+                cx="80"
+                cy="80"
+                r={radius}
+                className="stroke-muted"
+                strokeWidth="10"
+                fill="transparent"
+              />
+              <circle
+                cx="80"
+                cy="80"
+                r={radius}
+                className="stroke-brand-500 transition-all duration-1000 ease-out"
+                strokeWidth="10"
+                fill="transparent"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="text-center z-10">
+              <span className="font-display text-5xl font-bold text-brand-700 block leading-none">{overallScore}</span>
+              <span className={`font-label-sm text-xs font-bold uppercase tracking-wider block mt-1.5 ${gradeColor}`}>
                 {gradeLetter}
               </span>
             </div>
@@ -249,8 +308,8 @@ export default function ReportDetailPage(): ReactElement {
         </div>
       </section>
 
-      {/* Bento highlights grid */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Highlights Bento Grid */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
         {/* Highlight 1: Strongest Answer */}
         <div className="bg-card border border-border rounded-xl p-stack-md flex flex-col justify-between hover:border-brand-500/20 transition-all duration-300">
           <div>
@@ -263,12 +322,12 @@ export default function ReportDetailPage(): ReactElement {
             </p>
             <p className="text-caption text-muted-foreground font-medium leading-relaxed">
               {strongestQuestion?.text 
-                ? `"${strongestQuestion.text.slice(0, 70)}..."` 
+                ? `"${strongestQuestion.text.slice(0, 80)}..."` 
                 : "Demonstrated exceptional technical clarity and concrete design choices."}
             </p>
           </div>
           <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[11px] text-brand-700 font-bold uppercase tracking-wider">
-            <span>Dynamic Score</span>
+            <span>Score</span>
             <span>{strongestQuestion?.answer?.scores?.overall || 9}/10</span>
           </div>
         </div>
@@ -285,12 +344,12 @@ export default function ReportDetailPage(): ReactElement {
             </p>
             <p className="text-caption text-muted-foreground font-medium leading-relaxed">
               {weakestQuestion?.text 
-                ? `"${weakestQuestion.text.slice(0, 70)}..."` 
+                ? `"${weakestQuestion.text.slice(0, 80)}..."` 
                 : "Relied on general hypotheticals rather than specific anecdotes."}
             </p>
           </div>
           <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-bold uppercase tracking-wider">
-            <span>Dynamic Score</span>
+            <span>Score</span>
             <span>{weakestQuestion?.answer?.scores?.overall || 6}/10</span>
           </div>
         </div>
@@ -300,14 +359,14 @@ export default function ReportDetailPage(): ReactElement {
           <div>
             <div className="flex items-center gap-2 mb-4 text-accent-600">
               <Volume2 className="h-5 w-5" />
-              <h3 className="font-label-md text-label-md font-bold uppercase tracking-wider">Fluency Score</h3>
+              <h3 className="font-label-md text-label-md font-bold uppercase tracking-wider">Fluency Pace</h3>
             </div>
             <div className="flex items-baseline gap-1.5 mb-2">
-              <span className="font-display text-4xl font-bold text-foreground">{Math.round(averageWpm)}</span>
+              <span className="font-display text-4xl font-bold text-foreground">{Math.round(avgWpm)}</span>
               <span className="font-label-sm text-label-sm text-muted-foreground font-semibold">WPM</span>
             </div>
             <p className="text-caption text-muted-foreground font-medium leading-relaxed">
-              Steady pace, few filler words, and solid conversational rhythm throughout.
+              Steady tempo with {report.fluencySummary.totalFillerWords || 0} filler words. {report.fluencySummary.fillerTrend || "Top 15% pacing."}
             </p>
           </div>
           <div className="absolute bottom-0 left-0 w-full h-1 bg-muted">
@@ -316,12 +375,203 @@ export default function ReportDetailPage(): ReactElement {
         </div>
       </section>
 
+      {/* Executive Summary Section */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-gutter pt-2">
+        {/* Left Side: 2 columns for Summary */}
+        <Card className="lg:col-span-2 border-border bg-card shadow-sm flex flex-col justify-between">
+          <CardHeader className="bg-muted/10 border-b border-border pb-4">
+            <div className="flex items-center gap-2 text-brand-700">
+              <Sparkles className="h-5 w-5" />
+              <CardTitle className="font-display text-lg font-bold text-foreground">AI Executive Assessment</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4 flex-1">
+            <p className="font-body-md text-body-md text-muted-foreground leading-relaxed whitespace-pre-wrap">
+              {report.overallSummary || "Analyzing the session transcription content shows exceptional structural capabilities with concrete examples. Key design patterns were demonstrated clearly."}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Right Side: 1 column for Strengths & Weaknesses */}
+        <div className="flex flex-col gap-4">
+          <Card className="border-border bg-card shadow-sm flex-1">
+            <CardHeader className="bg-muted/10 border-b border-border py-3 px-4">
+              <div className="flex items-center gap-2 text-emerald-600">
+                <CheckCircle2 className="h-4.5 w-4.5" />
+                <span className="font-label-md text-xs font-bold uppercase tracking-wider">Key Strengths</span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4 px-4 pb-4">
+              <ul className="space-y-2 text-caption text-muted-foreground font-semibold">
+                {report.keyStrengths && report.keyStrengths.length > 0 ? (
+                  report.keyStrengths.map((s, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold mt-0.5">•</span>
+                      <span>{s}</span>
+                    </li>
+                  ))
+                ) : (
+                  <>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold mt-0.5">•</span>
+                      <span>Clear communication and high technical vocabulary.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold mt-0.5">•</span>
+                      <span>Good indexing and scaling trade-off definitions.</span>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card shadow-sm flex-1">
+            <CardHeader className="bg-muted/10 border-b border-border py-3 px-4">
+              <div className="flex items-center gap-2 text-brand-700">
+                <AlertTriangle className="h-4.5 w-4.5" />
+                <span className="font-label-md text-xs font-bold uppercase tracking-wider">Key Weaknesses</span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4 px-4 pb-4">
+              <ul className="space-y-2 text-caption text-muted-foreground font-semibold">
+                {report.keyWeaknesses && report.keyWeaknesses.length > 0 ? (
+                  report.keyWeaknesses.map((w, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="text-brand-500 font-bold mt-0.5">•</span>
+                      <span>{w}</span>
+                    </li>
+                  ))
+                ) : (
+                  <>
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-500 font-bold mt-0.5">•</span>
+                      <span>Relied on generalizations instead of concrete numbers.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-500 font-bold mt-0.5">•</span>
+                      <span>Conflict resolution lacked a proper structured path.</span>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Company Fit Analysis (Wow bento block) */}
+      {report.companyFitScore !== null && report.companyFitScore !== undefined && (
+        <section className="bg-card border-l-4 border-l-[#006783] border border-border rounded-xl p-stack-md flex flex-col md:flex-row gap-6 items-center md:items-start justify-between relative shadow-sm">
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2 text-[#006783]">
+              <Target className="h-5 w-5" />
+              <h3 className="font-display text-lg font-bold">Company-Fit Calibrator</h3>
+            </div>
+            <p className="text-caption text-muted-foreground font-medium leading-relaxed whitespace-pre-wrap">
+              {report.companyFitAnalysis || "The candidate's core technology choices align perfectly with the target stack outlined in the Job Description, demonstrating solid production experience."}
+            </p>
+          </div>
+          <div className="shrink-0 text-center bg-[#006783]/5 border border-[#006783]/20 px-6 py-4 rounded-lg flex flex-col justify-center min-w-[140px]">
+            <span className="font-display text-3xl font-bold text-[#006783]">{report.companyFitScore}%</span>
+            <span className="font-label-sm text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">Role Match</span>
+          </div>
+        </section>
+      )}
+
+      {/* Prep & Prep Section */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-gutter pt-2">
+        {/* Next Focus */}
+        <Card className="border-border bg-card shadow-sm flex flex-col justify-between">
+          <CardHeader className="bg-muted/10 border-b border-border pb-4">
+            <div className="flex items-center gap-2 text-brand-700">
+              <Award className="h-5 w-5" />
+              <CardTitle className="font-display text-lg font-bold text-foreground">Next Session Focus</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4 flex-1">
+            <p className="text-caption text-muted-foreground leading-relaxed font-semibold">
+              {report.nextSessionFocus || "Develop concrete metric storytelling skills. Practice framing behavioral narratives using quantitative results (e.g. latency reduced by X%, team velocity increased by Y%)."}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Study Prep Recommendations */}
+        <Card className="lg:col-span-2 border-border bg-card shadow-sm">
+          <CardHeader className="bg-muted/10 border-b border-border pb-4">
+            <div className="flex items-center gap-2 text-[#006783]">
+              <BookOpen className="h-5 w-5" />
+              <CardTitle className="font-display text-lg font-bold text-foreground">Recommended Study & Prep Plan</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            {report.studyRecommendations && report.studyRecommendations.length > 0 ? (
+              <div className="space-y-4">
+                {report.studyRecommendations.map((rec, idx) => {
+                  const badgeColors = 
+                    rec.priority === "high" 
+                      ? "bg-red-500/10 text-red-600 border-red-500/20"
+                      : rec.priority === "medium"
+                      ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                      : "bg-muted text-muted-foreground border-border";
+
+                  return (
+                    <div key={idx} className="border border-border p-4 rounded-lg bg-muted/5 flex flex-col md:flex-row justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <Badge variant="muted" className={`font-bold text-[9px] tracking-wider uppercase px-2 ${badgeColors}`}>
+                            {rec.priority} Priority
+                          </Badge>
+                          <h4 className="font-body-md text-sm font-bold text-foreground">{rec.topic}</h4>
+                        </div>
+                        <p className="text-xs text-muted-foreground font-semibold mt-1">Recommended material & resources:</p>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1.5 items-center shrink-0 self-start md:self-center">
+                        {rec.resources && rec.resources.map((res, rIdx) => (
+                          <span 
+                            key={rIdx}
+                            className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]"
+                          >
+                            {res}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="border border-border p-4 rounded-lg bg-muted/5 flex flex-col md:flex-row justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Badge variant="muted" className="font-bold text-[9px] tracking-wider uppercase px-2 bg-red-500/10 text-red-600 border-red-500/20">
+                      high Priority
+                    </Badge>
+                    <h4 className="font-body-md text-sm font-bold text-foreground">STAR Behavioral Framework</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-semibold">Structured behavioral answers with clear situational context.</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5 items-center shrink-0">
+                  <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]">
+                    STAR guide
+                  </span>
+                  <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]">
+                    Template
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
       {/* Per-Question Breakdown */}
       <section className="space-y-stack-md pt-4">
         <h2 className="font-display text-2xl font-bold text-foreground border-b border-border pb-2">Question Breakdown</h2>
         {answeredQuestions.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center text-caption text-muted-foreground font-medium">
-            This session was ending before any questions were answered. Try another session.
+            This session ended before any questions were answered. Try another session.
           </div>
         ) : (
           answeredQuestions.map((q) => {
@@ -332,25 +582,25 @@ export default function ReportDetailPage(): ReactElement {
             return (
               <div key={q.id} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
                 {/* Question Info Header */}
-                <div className="p-stack-md bg-muted/10 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="p-stack-md bg-muted/10 border-b border-[#E5E5E3] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
                     <span className="font-label-sm text-label-sm text-brand-700 font-bold uppercase tracking-wider mb-1 block">
                       Question {index} • {formatRoundName(q.questionType)}
                     </span>
-                    <h3 className="font-body-md text-body-md font-bold text-foreground leading-snug">
-                      "{q.text}"
+                    <h3 className="font-body-md text-body-md font-bold text-on-surface leading-snug">
+                      &ldquo;{q.text}&rdquo;
                     </h3>
                   </div>
                   <div className="flex gap-4 shrink-0 font-bold">
                     <div className="text-center">
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Clarity</div>
-                      <div className="font-display text-md text-brand-700 bg-brand-500/10 px-2 py-0.5 rounded-full mt-0.5">
+                      <div className="font-display text-md text-[#006783] bg-[#006783]/10 px-2 py-0.5 rounded-full mt-0.5">
                         {qClarity}/10
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Delivery</div>
-                      <div className="font-display text-md text-accent-600 bg-accent-500/10 px-2 py-0.5 rounded-full mt-0.5">
+                      <div className="font-display text-md text-[#a73a00] bg-[#a73a00]/10 px-2 py-0.5 rounded-full mt-0.5">
                         {qDelivery}/10
                       </div>
                     </div>
@@ -364,12 +614,12 @@ export default function ReportDetailPage(): ReactElement {
                       <Volume2 className="h-4 w-4" />
                       Recorded Transcript Excerpt
                     </h4>
-                    <p className="text-caption text-foreground bg-muted/10 border border-border p-4 rounded-lg italic font-medium leading-relaxed">
-                      "{q.answer?.transcript || "[Blank/Unrecognized response]"}"
+                    <p className="text-caption text-foreground bg-surface-container-low border border-border p-4 rounded-lg italic font-medium leading-relaxed">
+                      &ldquo;{q.answer?.transcript || "[Blank/Unrecognized response]"}&rdquo;
                     </p>
                   </div>
                   
-                  <div className="bg-brand-500/5 border border-brand-500/10 rounded-lg p-4 flex flex-col justify-between">
+                  <div className="bg-[#a73a00]/5 border border-[#a73a00]/20 rounded-lg p-4 flex flex-col justify-between">
                     <div>
                       <h4 className="font-label-sm text-label-sm text-brand-700 font-bold uppercase tracking-wider flex items-center gap-1.5 mb-2">
                         <Lightbulb className="h-4 w-4" />
