@@ -35,6 +35,7 @@ Praxo is a **BYOK (Bring Your Own Key)** AI interview coach that conducts live v
 ### Key Principles
 
 - **BYOK** — Bring your own LLM key: OpenAI, Claude, Gemini, Groq, OpenRouter, or Ollama (fully local)
+- **Cost-effective** — Leverage free-tier APIs and pay-per-use pricing. No subscriptions, no lock-in. Switch providers based on your budget or needs.
 - **Self-hostable** — `docker compose up` and you're running. Or `npm start` for lite mode (no Docker)
 - **Privacy-first** — Your mock answers, scores, and recordings can stay 100% local
 - **Honest feedback** — Multi-dimensional scoring, ideal answers shown, specific improvement tips
