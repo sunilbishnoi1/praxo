@@ -97,6 +97,9 @@ export function InterviewSession({
   const [thinkingLabel, setThinkingLabel] = useState("Preparing session");
   const [sessionComplete, setSessionComplete] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [generationStage, setGenerationStage] = useState("Initializing report engine...");
+  const [generationProgress, setGenerationProgress] = useState(10);
 
   const chunksRef = useRef<Blob[]>([]);
   const captureRef = useRef<Awaited<
@@ -468,7 +471,8 @@ export function InterviewSession({
             } catch {}
           }
         }
-        await speakRef.current(firstQuestion.text);
+        setLoading(false);
+        void speakRef.current(firstQuestion.text);
       }
     } catch (exception) {
       const message =
@@ -557,15 +561,8 @@ export function InterviewSession({
     const nextData = nextJson.data;
 
     if (nextData.completed) {
-      setSessionComplete(true);
-      sessionCompleteRef.current = true;
-      changeVoiceStatus("completed");
       setThinkingLabel(nextData.reason);
-      await fetch(`/api/sessions/${sessionId}/end`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "completed" }),
-      });
+      await endSessionAndGenerateReport("completed");
       return;
     }
 
@@ -661,17 +658,52 @@ export function InterviewSession({
     changeVoiceStatus("paused");
   }
 
-  async function endInterview(): Promise<void> {
+  async function endSessionAndGenerateReport(reason: "completed" | "abandoned"): Promise<void> {
+    setGeneratingReport(true);
     setSessionComplete(true);
     sessionCompleteRef.current = true;
     await stopCapture();
     changeVoiceStatus("completed");
-    await fetch(`/api/sessions/${sessionId}/end`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "abandoned" }),
-    });
-    router.push("/");
+
+    const interval = setInterval(() => {
+      setGenerationProgress((p) => {
+        if (p >= 90) return p;
+        const nextProgress = p + Math.floor(Math.random() * 15) + 5;
+        if (nextProgress < 30) setGenerationStage("Analyzing vocal delivery & WPM pacing...");
+        else if (nextProgress < 60) setGenerationStage("Evaluating technical correctness & algorithm parameters...");
+        else if (nextProgress < 85) setGenerationStage("Correlating response depth with target job requirements...");
+        else setGenerationStage("Assembling final grades and study roadmap...");
+        return Math.min(nextProgress, 90);
+      });
+    }, 1500);
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/end`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const json = await response.json();
+      clearInterval(interval);
+      setGenerationProgress(100);
+      setGenerationStage("Report ready! Redirecting...");
+
+      if (json.success && json.data?.reportId) {
+        setTimeout(() => {
+          router.push(`/reports/${json.data.reportId}`);
+        }, 800);
+      } else {
+        router.push("/");
+      }
+    } catch (err) {
+      console.error(err);
+      clearInterval(interval);
+      router.push("/");
+    }
+  }
+
+  async function endInterview(): Promise<void> {
+    await endSessionAndGenerateReport("completed");
   }
 
   useEffect(() => {
@@ -711,6 +743,37 @@ export function InterviewSession({
     );
   }
 
+  if (generatingReport) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-background relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(167,58,0,0.08)_0%,_rgba(167,58,0,0)_70%)] animate-pulse"
+        />
+        <div className="max-w-md w-full px-6 text-center space-y-6 z-10">
+          <div className="relative flex justify-center">
+            <Loader2 className="h-16 w-16 animate-spin text-brand-500" />
+            <Sparkles className="absolute h-6 w-6 text-accent-500 animate-bounce top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="font-display text-3xl font-bold text-foreground tracking-tight">
+              Generating Final Report
+            </h2>
+            <p className="text-body text-muted-foreground animate-pulse font-medium h-6">
+              {generationStage}
+            </p>
+          </div>
+          <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-brand-500 transition-all duration-500 ease-out" 
+              style={{ width: `${generationProgress}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <ErrorState
@@ -742,9 +805,9 @@ export function InterviewSession({
   const sessionLabel = `${session.roundType.replace(/-/g, " ")} · ${session.difficulty}`;
 
   return (
-    <div className="flex flex-col gap-stack-lg pb-[112px] h-full">
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden bg-background">
       {/* Sticky Header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/85 px-4 py-4 backdrop-blur flex justify-between items-center shrink-0">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/85 px-6 py-4 backdrop-blur flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 font-bold text-caption text-brand-700 uppercase tracking-wider">
             {session.roundType.replace(/-/g, " ")}
@@ -764,71 +827,74 @@ export function InterviewSession({
         </div>
       </header>
 
-      {/* Main Grid */}
-      <div className="grid gap-stack-md lg:grid-cols-[7fr_5fr] items-stretch flex-1 min-h-0">
-        <div className="flex flex-col gap-stack-md justify-between">
-          <div className="rounded-lg border border-border bg-card p-stack-md flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-element">
-              <Button variant="ghost" size="sm" asChild className="hover:bg-muted font-semibold">
-                <Link href="/session/new">
-                  <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
-                  Configure
-                </Link>
-              </Button>
-              <div className="flex items-center gap-1.5 font-semibold text-caption text-muted-foreground">
-                <Sparkles className="h-4 w-4 text-accent-600 animate-pulse" aria-hidden />
-                {thinkingLabel}
+      {/* Main Content Area */}
+      <main className="flex-1 min-h-0 px-6 py-4 flex flex-col justify-between overflow-hidden">
+        {/* Main Grid */}
+        <div className="grid gap-stack-md lg:grid-cols-[7fr_5fr] items-stretch flex-1 min-h-0">
+          <div className="flex flex-col gap-stack-md justify-between min-h-0 h-full">
+            <div className="rounded-lg border border-border bg-card p-stack-md flex flex-col gap-4 shrink-0">
+              <div className="flex items-center justify-between gap-element">
+                <Button variant="ghost" size="sm" asChild className="hover:bg-muted font-semibold">
+                  <Link href="/session/new">
+                    <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
+                    Configure
+                  </Link>
+                </Button>
+                <div className="flex items-center gap-1.5 font-semibold text-caption text-muted-foreground">
+                  <Sparkles className="h-4 w-4 text-accent-600 animate-pulse" aria-hidden />
+                  {thinkingLabel}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setQuestionRevealed((current) => !current)}
+                  className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/20 hover:bg-muted/40 px-4 py-3 text-left transition-colors duration-200 cursor-pointer"
+                >
+                  <span className="text-body font-bold text-foreground">
+                    Reveal Live Prompt
+                  </span>
+                  <span className="text-caption text-muted-foreground font-semibold flex items-center gap-1">
+                    {questionRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {questionRevealed ? "Hide Prompt" : "Show Prompt"}
+                  </span>
+                </button>
+
+                {questionRevealed && (
+                  <div className="p-4 rounded-lg border border-brand-500/20 bg-brand-500/5 transition-all duration-300">
+                    <p className="text-[10px] uppercase tracking-wider text-brand-700 font-bold">
+                      Active Question
+                    </p>
+                    <p className="mt-2 text-body font-medium text-foreground leading-relaxed">
+                      {currentQuestionText}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setQuestionRevealed((current) => !current)}
-                className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/20 hover:bg-muted/40 px-4 py-3 text-left transition-colors duration-200 cursor-pointer"
-              >
-                <span className="text-body font-bold text-foreground">
-                  Reveal Live Prompt
-                </span>
-                <span className="text-caption text-muted-foreground font-semibold flex items-center gap-1">
-                  {questionRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  {questionRevealed ? "Hide Prompt" : "Show Prompt"}
-                </span>
-              </button>
-
-              {questionRevealed && (
-                <div className="p-4 rounded-lg border border-brand-500/20 bg-brand-500/5 transition-all duration-300">
-                  <p className="text-[10px] uppercase tracking-wider text-brand-700 font-bold">
-                    Active Question
-                  </p>
-                  <p className="mt-2 text-body font-medium text-foreground leading-relaxed">
-                    {currentQuestionText}
-                  </p>
-                </div>
-              )}
+            <div className="flex-1 flex flex-col justify-center min-h-0">
+              <VoiceVisualizer
+                status={voiceStatus}
+                level={level}
+                questionText={currentQuestionText}
+              />
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col justify-center min-h-[300px]">
-            <VoiceVisualizer
-              status={voiceStatus}
-              level={level}
-              questionText={currentQuestionText}
+          {/* Scrollable live transcript */}
+          <div className="h-full border border-border rounded-lg bg-card overflow-hidden flex flex-col min-h-0">
+            <TranscriptPanel
+              messages={transcriptMessages}
+              interimTranscript={interimTranscript}
             />
           </div>
         </div>
+      </main>
 
-        {/* Scrollable live transcript */}
-        <div className="h-[550px] lg:h-auto border border-border rounded-lg bg-card overflow-hidden">
-          <TranscriptPanel
-            messages={transcriptMessages}
-            interimTranscript={interimTranscript}
-          />
-        </div>
-      </div>
-
-      {/* Floating Bottom Dashboard Controller */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 px-margin-desktop py-4 backdrop-blur shadow-md shrink-0">
+      {/* Bottom Dashboard Controller */}
+      <div className="border-t border-border bg-background/95 px-6 py-4 shadow-md shrink-0">
         <div className="max-w-[1200px] mx-auto flex w-full flex-col gap-3">
           <VoiceControls
             micActive={micActive}

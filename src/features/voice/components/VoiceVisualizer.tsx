@@ -44,12 +44,12 @@ export function VoiceVisualizer({
   const thinking = status === "processing" || status === "connecting";
 
   return (
-    <section className="relative overflow-hidden rounded-lg border border-border bg-card p-card">
+    <section className="relative overflow-hidden rounded-lg border border-border bg-card p-card h-full flex flex-col">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(242,106,46,0.14)_0%,_rgba(8,166,209,0.06)_35%,_transparent_70%)]"
       />
-      <div className="relative flex min-h-[420px] flex-col justify-between gap-section">
+      <div className="relative flex flex-1 flex-col justify-between gap-section min-h-[260px]">
         <div className="flex items-center justify-between gap-element">
           <div className="flex items-center gap-element rounded-full border border-border bg-background/80 px-3 py-2 text-caption text-muted-foreground backdrop-blur font-semibold">
             {status === "ai_speaking" ? (

@@ -1,5 +1,3 @@
-// src/features/scoring/aggregator.ts
-
 import type {
   DimensionScores,
   FluencyMetrics,
@@ -234,6 +232,30 @@ export function aggregateAnswers(
           topic: info.topic,
           resources: info.resources,
           priority,
+        });
+      }
+    }
+  }
+
+  // Ensure studyRecommendations is never empty to prevent hardcoded page fallbacks
+  if (studyRecommendations.length === 0) {
+    let lowestDim: string | null = null;
+    let lowestScore = 101;
+    for (const [dim, average] of Object.entries(dimensionAverages)) {
+      const weight = weights[dim as keyof ScoringWeights] ?? 0;
+      if (weight > 0 && average < lowestScore) {
+        lowestScore = average;
+        lowestDim = dim;
+      }
+    }
+
+    if (lowestDim) {
+      const info = DIMENSION_RESOURCES[lowestDim as keyof (DimensionScores & { fluency: number })];
+      if (info) {
+        studyRecommendations.push({
+          topic: `Advanced ${info.topic}`,
+          resources: info.resources,
+          priority: "low",
         });
       }
     }

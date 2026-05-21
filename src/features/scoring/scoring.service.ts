@@ -1,5 +1,3 @@
-// src/features/scoring/scoring.service.ts
-
 import { z } from "zod";
 import { getActiveLLMProvider } from "@/features/llm";
 import { getRoundType } from "@/features/session/round-registry";
@@ -8,7 +6,9 @@ import {
   buildAnswerScoringPrompt,
   buildIdealAnswerPrompt,
   buildCompanyFitPrompt,
-  buildSessionSummaryPrompt,
+  buildSessionExecutiveSummaryPrompt,
+  buildSessionStrengthsWeaknessesPrompt,
+  buildSessionNextFocusPrompt,
 } from "./prompts";
 import type { AnswerScores, FluencyMetrics, DimensionScores } from "./types";
 
@@ -324,36 +324,61 @@ export class ScoringService {
   }> {
     try {
       const { adapter } = await getActiveLLMProvider();
-      const prompt = buildSessionSummaryPrompt({
+      const promptInput = {
         roundType: params.roundType,
         difficulty: params.difficulty,
         yearsOfExperience: params.yearsOfExperience,
         overallScore: params.overallScore,
         dimensionScoresJson: JSON.stringify(params.dimensionAverages),
         questionsAndAnswersJson: JSON.stringify(params.questionsAndAnswers),
-      });
+      };
 
-      const response = await adapter.chat({
-        model: adapter.maxContextTokens["gpt-4o"] ? "gpt-4o" : "default",
-        messages: [
-          { role: "system", content: "You are a professional interview coach. Output valid JSON only." },
-          { role: "user", content: prompt },
-        ],
-        responseFormat: "json",
-        temperature: 0.2,
-      });
+      const execPrompt = buildSessionExecutiveSummaryPrompt(promptInput);
+      const swPrompt = buildSessionStrengthsWeaknessesPrompt(promptInput);
+      const focusPrompt = buildSessionNextFocusPrompt(promptInput);
 
-      const cleaned = cleanJsonString(response.content);
-      const parsed = JSON.parse(cleaned) as unknown;
+      const [execRes, swRes, focusRes] = await Promise.all([
+        adapter.chat({
+          model: adapter.maxContextTokens["gpt-4o"] ? "gpt-4o" : "default",
+          messages: [
+            { role: "system", content: "You are an elite technical interview coach." },
+            { role: "user", content: execPrompt },
+          ],
+          temperature: 0.3,
+        }),
+        adapter.chat({
+          model: adapter.maxContextTokens["gpt-4o"] ? "gpt-4o" : "default",
+          messages: [
+            { role: "system", content: "You are a professional technical interviewer. Output valid JSON only." },
+            { role: "user", content: swPrompt },
+          ],
+          responseFormat: "json",
+          temperature: 0.2,
+        }),
+        adapter.chat({
+          model: adapter.maxContextTokens["gpt-4o"] ? "gpt-4o" : "default",
+          messages: [
+            { role: "system", content: "You are a world-class system engineering coach." },
+            { role: "user", content: focusPrompt },
+          ],
+          temperature: 0.3,
+        }),
+      ]);
 
-      const validated = sessionSummaryResponseSchema.safeParse(parsed);
-      if (!validated.success) {
-        throw new Error("Invalid session summary JSON response");
-      }
+      const overallSummary = execRes.content.trim();
+      const nextSessionFocus = focusRes.content.trim();
 
-      return validated.data;
+      const swCleaned = cleanJsonString(swRes.content);
+      const swParsed = JSON.parse(swCleaned) as { keyStrengths?: string[]; keyWeaknesses?: string[] };
+
+      return {
+        overallSummary: overallSummary || "Completed interview simulation.",
+        keyStrengths: swParsed.keyStrengths || ["Clear response delivery"],
+        keyWeaknesses: swParsed.keyWeaknesses || ["Provide deeper architectural details"],
+        nextSessionFocus: nextSessionFocus || "Continue practicing structured question techniques.",
+      };
     } catch (error) {
-      console.error("Session summary generation failed:", error);
+      console.error("Multi-stage session summary generation failed:", error);
       return {
         overallSummary: "You have completed your interview simulation. Check individual answers for breakdown feedback.",
         keyStrengths: ["Completed all interview questions"],

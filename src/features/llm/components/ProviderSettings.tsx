@@ -25,6 +25,7 @@ import type {
 
 type ProviderSettingsProps = {
   initialProviders: ProviderStatus[];
+  defaultLlmProvider: string | null;
 };
 
 type ProviderFormState = {
@@ -221,9 +222,36 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 export function ProviderSettings({
   initialProviders,
+  defaultLlmProvider,
 }: ProviderSettingsProps): ReactElement {
   const [providers, setProviders] =
     useState<ProviderStatus[]>(initialProviders);
+  const [defaultProvider, setDefaultProvider] = useState<string | null>(defaultLlmProvider);
+
+  const configuredProviders = useMemo(() => {
+    return providers.filter(
+      (p) => p.isConfigured && p.provider !== "deepgram"
+    );
+  }, [providers]);
+
+  const handleSetDefault = useCallback(async (providerId: string) => {
+    try {
+      const response = await fetch("/api/providers/default", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId }),
+      });
+      const json = await response.json();
+      if (json.success) {
+        setDefaultProvider(providerId);
+      } else {
+        alert(json.error?.message || "Failed to update preferred provider.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while updating preferred provider.");
+    }
+  }, []);
   const [formState, setFormState] = useState<Record<string, ProviderFormState>>(
     () => {
       const next: Record<string, ProviderFormState> = {};
@@ -625,6 +653,42 @@ export function ProviderSettings({
           Manage your external LLM endpoints, credentials, models, and latency settings.
         </p>
       </div>
+
+      {configuredProviders.length > 1 && (
+        <Card className="border-brand-500/20 bg-brand-500/5 shadow-sm mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-xl font-bold flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-brand-500" />
+              Preferred AI Provider
+            </CardTitle>
+            <CardDescription className="text-muted-foreground mt-1">
+              Multiple AI providers are configured. Select which one should be used for your interviews.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pb-6">
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {configuredProviders.map((provider) => (
+                <button
+                  key={provider.provider}
+                  type="button"
+                  onClick={() => handleSetDefault(provider.provider)}
+                  className={cn(
+                    "flex items-center justify-between rounded-lg border p-4 text-left transition-all active:scale-98 cursor-pointer w-full",
+                    defaultProvider === provider.provider
+                      ? "border-brand-500 bg-brand-500/10 text-brand-700 shadow-sm"
+                      : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <span className="font-semibold">{PROVIDER_LABELS[provider.provider]}</span>
+                  {defaultProvider === provider.provider && (
+                    <span className="rounded-full bg-brand-500 text-white p-1 text-[10px] font-bold leading-none flex items-center justify-center h-5 w-5">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap gap-2 pt-2">
         {aiProviders.map((provider) => {

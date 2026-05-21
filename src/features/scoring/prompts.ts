@@ -1,5 +1,3 @@
-// src/features/scoring/prompts.ts
-
 export interface AnswerScoringPromptInput {
   roundType: string;
   difficulty: string;
@@ -224,4 +222,59 @@ Respond ONLY with a JSON object matching this schema:
 }
 
 Output ONLY valid raw JSON.`;
+}
+
+export interface SessionSummaryPromptsInput {
+  roundType: string;
+  difficulty: string;
+  yearsOfExperience: number;
+  questionsAndAnswersJson: string;
+  dimensionScoresJson: string;
+  overallScore: number;
+}
+
+export function buildSessionExecutiveSummaryPrompt(input: SessionSummaryPromptsInput): string {
+  return `You are an elite technical interview coach. Evaluate this complete mock interview session:
+- Round: ${input.roundType}
+- Difficulty: ${input.difficulty} (${input.yearsOfExperience} YOE)
+- Overall Score: ${input.overallScore}/100
+- Dimension Averages: ${input.dimensionScoresJson}
+
+QUESTIONS & CANDIDATE ANSWERS WITH INDIVIDUAL SCORES:
+${input.questionsAndAnswersJson}
+
+Provide a deep, 2-3 paragraph professional executive evaluation of the candidate's core communication style, speed of thought, domain expertise, and technical maturity. Speak directly, highlighting their unique professional signature and areas of polish.
+Respond with ONLY the executive summary text. Do not include JSON formatting or HTML.`;
+}
+
+export function buildSessionStrengthsWeaknessesPrompt(input: SessionSummaryPromptsInput): string {
+  return `You are an expert technical interviewer. Evaluate this complete mock interview session:
+- Round: ${input.roundType}
+- Difficulty: ${input.difficulty} (${input.yearsOfExperience} YOE)
+- Overall Score: ${input.overallScore}/100
+
+QUESTIONS & CANDIDATE ANSWERS WITH INDIVIDUAL SCORES:
+${input.questionsAndAnswersJson}
+
+Identify the key technical and architectural strengths and weaknesses demonstrated. Pick out specific traits, code details, or communication behaviors.
+Respond ONLY with a JSON object matching this schema:
+{
+  "keyStrengths": ["Detailed strength 1", "Detailed strength 2", ...],
+  "keyWeaknesses": ["Detailed weakness/gap 1", "Detailed weakness/gap 2", ...]
+}
+Output ONLY valid raw JSON.`;
+}
+
+export function buildSessionNextFocusPrompt(input: SessionSummaryPromptsInput): string {
+  return `You are a world-class system engineering coach. Evaluate this complete mock interview session:
+- Round: ${input.roundType}
+- Difficulty: ${input.difficulty} (${input.yearsOfExperience} YOE)
+- Overall Score: ${input.overallScore}/100
+- Dimension Averages: ${input.dimensionScoresJson}
+
+QUESTIONS & CANDIDATE ANSWERS WITH INDIVIDUAL SCORES:
+${input.questionsAndAnswersJson}
+
+Formulate highly tailored, actionable preparation advice on what exactly the candidate should focus on or practice in their next session to make the biggest improvement.
+Respond with ONLY the actionable next steps text. Do not include JSON formatting or HTML.`;
 }

@@ -1,9 +1,16 @@
 import type { ReactElement } from "react";
-import { listProviderStatuses } from "@/features/llm";
+import { listProviderStatuses, getDefaultUserId } from "@/features/llm";
 import { ProviderSettings } from "@/features/llm/components/ProviderSettings";
+import { prisma } from "@/lib/db";
 
 export default async function SettingsPage(): Promise<ReactElement> {
   const providers = await listProviderStatuses();
+  const userId = await getDefaultUserId();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { defaultLlmProvider: true },
+  });
+  const defaultLlmProvider = user?.defaultLlmProvider ?? null;
 
   return (
     <>
@@ -17,8 +24,9 @@ export default async function SettingsPage(): Promise<ReactElement> {
 
       {/* Main Settings Panel */}
       <div className="flex flex-col gap-stack-lg flex-1">
-        <ProviderSettings initialProviders={providers} />
+        <ProviderSettings initialProviders={providers} defaultLlmProvider={defaultLlmProvider} />
       </div>
     </>
   );
 }
+

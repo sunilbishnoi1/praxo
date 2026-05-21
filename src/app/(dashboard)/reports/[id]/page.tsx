@@ -49,6 +49,15 @@ type AnswerType = {
     coherence?: number;
     overall?: number;
     feedback?: string;
+    dimensions?: {
+      relevance?: number;
+      depth?: number;
+      technicalAccuracy?: number;
+      starStructure?: number;
+      timeComplexity?: number;
+      coherence?: number;
+      fluency?: number;
+    } | null;
   } | null;
 };
 
@@ -216,6 +225,9 @@ export default function ReportDetailPage(): ReactElement {
     }, null);
 
   const avgWpm = report.fluencySummary.averageWpm || 135;
+  let pacingFeedback = "Optimal professional tempo.";
+  if (avgWpm < 110) pacingFeedback = "Deliberate and highly controlled tempo.";
+  else if (avgWpm > 160) pacingFeedback = "Vibrant, rapid tempo; consider pausing slightly more.";
 
   // SVG circular stroke calculation
   const radius = 64;
@@ -328,7 +340,7 @@ export default function ReportDetailPage(): ReactElement {
           </div>
           <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[11px] text-brand-700 font-bold uppercase tracking-wider">
             <span>Score</span>
-            <span>{strongestQuestion?.answer?.scores?.overall || 9}/10</span>
+            <span>{strongestQuestion?.answer?.scores?.overall || 90}/100</span>
           </div>
         </div>
 
@@ -350,7 +362,7 @@ export default function ReportDetailPage(): ReactElement {
           </div>
           <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-bold uppercase tracking-wider">
             <span>Score</span>
-            <span>{weakestQuestion?.answer?.scores?.overall || 6}/10</span>
+            <span>{weakestQuestion?.answer?.scores?.overall || 60}/100</span>
           </div>
         </div>
 
@@ -366,7 +378,7 @@ export default function ReportDetailPage(): ReactElement {
               <span className="font-label-sm text-label-sm text-muted-foreground font-semibold">WPM</span>
             </div>
             <p className="text-caption text-muted-foreground font-medium leading-relaxed">
-              Steady tempo with {report.fluencySummary.totalFillerWords || 0} filler words. {report.fluencySummary.fillerTrend || "Top 15% pacing."}
+              Steady tempo with {report.fluencySummary.totalFillerWords || 0} filler words. {pacingFeedback}
             </p>
           </div>
           <div className="absolute bottom-0 left-0 w-full h-1 bg-muted">
@@ -576,8 +588,12 @@ export default function ReportDetailPage(): ReactElement {
         ) : (
           answeredQuestions.map((q) => {
             const index = q.orderIndex + 1;
-            const qClarity = q.answer?.scores?.clarity || 8;
-            const qDelivery = q.answer?.scores?.delivery || 8;
+            const qClarity = q.answer?.scores?.dimensions?.coherence
+              ? Math.round(q.answer.scores.dimensions.coherence / 10)
+              : q.answer?.scores?.clarity || 8;
+            const qDelivery = q.answer?.scores?.dimensions?.fluency
+              ? Math.round(q.answer.scores.dimensions.fluency / 10)
+              : q.answer?.scores?.delivery || 8;
             
             return (
               <div key={q.id} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
@@ -626,8 +642,7 @@ export default function ReportDetailPage(): ReactElement {
                         AI Analysis & Ideal Structure
                       </h4>
                       <p className="text-caption text-muted-foreground font-medium leading-relaxed">
-                        {q.answer?.scores?.feedback || 
-                         `Great response highlighting key details. To level up further, ensure you detail specific performance indicators (e.g. reduction in memory spikes, CPU thresholds or query execution parameters).`}
+                        {q.answer?.scores?.feedback || `Excellent attempt at answering this ${q.questionType} question. Clear focus was shown on the core concepts.`}
                       </p>
                     </div>
                   </div>
