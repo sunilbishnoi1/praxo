@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { decryptText, encryptText } from "@/lib/encryption";
 
 import { createLLMProvider } from "./registry";
+import { isGeminiLiveModel, normalizeGeminiModel } from "./adapters/gemini.adapter";
 import {
   LLM_PROVIDERS,
   type LLMProvider,
@@ -12,6 +13,7 @@ import {
   type ProviderSaveResult,
   type ProviderStatus,
   type ProviderTestResult,
+  type ConnectionTestResult,
 } from "./types";
 import { testDeepgramConnection } from "@/features/voice/stt/deepgram.adapter";
 
@@ -77,6 +79,42 @@ function resolveDefaultBaseUrl(provider: ProviderId): string | undefined {
   }
 }
 
+function normalizeModelForProvider(
+  provider: ProviderId,
+  model?: string | null
+): string | null {
+  if (!model) {
+    return null;
+  }
+
+  if (provider === "gemini") {
+    return normalizeGeminiModel(model);
+  }
+
+  return model;
+}
+
+function resolveGeminiTextModel(model?: string | null): string | null {
+  if (!model) {
+    return null;
+  }
+
+  const normalized = normalizeGeminiModel(model);
+  if (!isGeminiLiveModel(normalized)) {
+    return normalized;
+  }
+
+  const configDefault = config.geminiDefaultModel
+    ? normalizeGeminiModel(config.geminiDefaultModel)
+    : undefined;
+
+  if (configDefault && !isGeminiLiveModel(configDefault)) {
+    return configDefault;
+  }
+
+  return "gemini-3.1-flash-lite";
+}
+
 function requiresApiKey(provider: ProviderId): boolean {
   return provider !== "ollama";
 }
@@ -108,7 +146,10 @@ export async function listProviderStatuses(): Promise<ProviderStatus[]> {
           provider,
           isConfigured: Boolean(configEntry) && (provider === "ollama" || hasKey),
           isValid: configEntry?.isValid ?? false,
-          model: configEntry?.model ?? resolveDefaultModel(provider) ?? null,
+          model: normalizeModelForProvider(
+            provider,
+            configEntry?.model ?? resolveDefaultModel(provider) ?? null
+          ),
           lastTestedAt: configEntry?.lastTestedAt
             ? configEntry.lastTestedAt.toISOString()
             : null,
@@ -145,7 +186,10 @@ export async function saveProviderConfig(
     : existing?.apiKey ?? "";
 
   const baseUrl = input.baseUrl ?? existing?.baseUrl ?? null;
-  const model = input.model ?? existing?.model ?? resolveDefaultModel(input.provider) ?? null;
+  const model = normalizeModelForProvider(
+    input.provider,
+    input.model ?? existing?.model ?? resolveDefaultModel(input.provider) ?? null
+  );
   const shouldInvalidate = apiKeyProvided || input.baseUrl !== undefined || input.model !== undefined;
 
   await prisma.providerConfig.upsert({
@@ -282,24 +326,36 @@ export async function testProviderConnection(
     : decryptText(configEntry.apiKey, config.encryptionKey);
 
   const baseUrl = configEntry.baseUrl ?? resolveDefaultBaseUrl(provider);
-  const model = configEntry.model ?? resolveDefaultModel(provider);
-
-  if (!model) {
-    throw new ProviderConfigError(
-      "Provider model is missing.",
-      "MODEL_MISSING",
-      400
-    );
-  }
-
-  const adapter = createLLMProvider(provider, {
-    apiKey,
-    baseUrl,
-    defaultModel: model,
-  });
-
-  const result = await adapter.testConnection();
+  let model: string | null = null;
+  let result: ConnectionTestResult;
   const now = new Date();
+
+  try {
+    model = normalizeModelForProvider(
+      provider,
+      configEntry.model ?? resolveDefaultModel(provider)
+    );
+
+    if (!model) {
+      throw new Error("Provider model is missing.");
+    }
+
+    const adapter = createLLMProvider(provider, {
+      apiKey,
+      baseUrl,
+      defaultModel: model,
+    });
+
+    result = await adapter.testConnection();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Test failed.";
+    result = {
+      success: false,
+      latencyMs: 0,
+      model: model ?? configEntry.model ?? "unknown",
+      error: message,
+    };
+  }
 
   await prisma.providerConfig.update({
     where: {
@@ -312,7 +368,7 @@ export async function testProviderConnection(
       isValid: result.success,
       lastTestedAt: now,
       lastError: result.success ? null : result.error ?? "Test failed.",
-      model: configEntry.model ?? result.model,
+      model: result.model,
     },
   });
 
@@ -384,7 +440,14 @@ export async function getActiveLLMProvider(): Promise<{ providerId: LLMProviderI
          providerId === "openrouter" ? config.openrouterApiKey : "");
 
   const baseUrl = configEntry?.baseUrl ?? resolveDefaultBaseUrl(providerId);
-  const model = configEntry?.model ?? resolveDefaultModel(providerId);
+  let model = normalizeModelForProvider(
+    providerId,
+    configEntry?.model ?? resolveDefaultModel(providerId)
+  );
+
+  if (providerId === "gemini") {
+    model = resolveGeminiTextModel(model);
+  }
 
   if (!model) {
     throw new ProviderConfigError(

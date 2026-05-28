@@ -78,6 +78,7 @@ export async function GET(
           useJdForScoring: session.useJdForScoring,
           generateIdealAnswer: session.generateIdealAnswer,
           voiceOnly: session.voiceOnly,
+          voiceConversationMode: session.voiceConversationMode,
           resume: session.resume ? { id: session.resume.id, name: session.resume.name } : null,
           jobDescription: session.jobDescription ? { id: session.jobDescription.id, name: session.jobDescription.name } : null,
           gapAnalysis: gap,

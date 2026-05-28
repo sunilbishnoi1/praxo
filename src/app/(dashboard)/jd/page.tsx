@@ -191,8 +191,8 @@ export default function JdPage(): ReactElement {
       return (
         jd.name.toLowerCase().includes(query) ||
         (jd.parsedCompanyName && jd.parsedCompanyName.toLowerCase().includes(query)) ||
-        jd.parsedKeywords.some((kw) => kw.toLowerCase().includes(query)) ||
-        jd.parsedRequiredSkills.some((skill) => skill.toLowerCase().includes(query))
+        jd.parsedKeywords?.some((kw) => kw.toLowerCase().includes(query)) ||
+        jd.parsedRequiredSkills?.some((skill) => skill.toLowerCase().includes(query))
       );
     })
     .sort((a, b) => {
@@ -313,7 +313,7 @@ export default function JdPage(): ReactElement {
                     <Calendar className="h-4 w-4" />
                     Added {new Date(jd.createdAt).toLocaleDateString()}
                   </div>
-                  {jd.parsedRequiredSkills.length > 0 && (
+                  {(jd.parsedRequiredSkills?.length ?? 0) > 0 && (
                     <div className="flex items-center gap-1 text-accent-600 font-label-sm text-label-sm font-semibold">
                       <CheckCircle2 className="h-4 w-4" />
                       Prep Ready
@@ -327,14 +327,14 @@ export default function JdPage(): ReactElement {
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => handleViewDetails(jd.id)}
-                    className="p-2 text-muted-foreground hover:text-brand-700 transition-colors rounded-lg hover:bg-muted"
+                    className="p-2 text-muted-foreground hover:text-brand-700 transition-colors rounded-lg hover:bg-muted cursor-pointer"
                     title="View"
                   >
                     <Eye className="h-5 w-5" />
                   </button>
                   <button
                     onClick={(e) => handleDelete(jd.id, e)}
-                    className="p-2 text-muted-foreground hover:text-red-500 transition-colors rounded-lg hover:bg-red-500/10"
+                    className="p-2 text-muted-foreground hover:text-red-500 transition-colors rounded-lg hover:bg-red-500/10 cursor-pointer"
                     title="Delete"
                   >
                     <Trash2 className="h-5 w-5" />
@@ -344,7 +344,7 @@ export default function JdPage(): ReactElement {
                 <Link
                   href={`/session/new?jdId=${jd.id}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-card border border-brand-500 text-brand-700 hover:text-brand-800 px-4 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2 hover:bg-brand-500/10 transition-colors active:scale-95 font-semibold"
+                  className="bg-card border border-brand-500 text-brand-700 hover:text-brand-800 px-4 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2 hover:bg-brand-500/10 transition-colors active:scale-95 font-semibold cursor-pointer"
                 >
                   <Play className="h-4 w-4" />
                   Start Session
@@ -372,7 +372,7 @@ export default function JdPage(): ReactElement {
                 <span className="text-caption text-brand-700 font-semibold tracking-wider uppercase">Parsed Job Description</span>
                 <h2 className="font-display text-xl font-bold text-foreground mt-0.5">{selectedJd.name}</h2>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setViewingDetail(false)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full cursor-pointer" onClick={() => setViewingDetail(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -402,44 +402,44 @@ export default function JdPage(): ReactElement {
                     <CardTitle className="text-body font-semibold text-emerald-600 dark:text-emerald-400">Required Skills</CardTitle>
                   </CardHeader>
                   <CardContent className="p-card flex flex-wrap gap-1.5">
-                    {selectedJd.parsedRequiredSkills.map((s) => (
+                    {(selectedJd.parsedRequiredSkills || []).map((s) => (
                       <Badge key={s} variant="success" className="text-[10px]">
                         {s}
                       </Badge>
                     ))}
-                    {selectedJd.parsedRequiredSkills.length === 0 && (
+                    {(selectedJd.parsedRequiredSkills?.length ?? 0) === 0 && (
                       <p className="text-caption text-muted-foreground italic">No required skills parsed.</p>
                     )}
                   </CardContent>
                 </Card>
-
+ 
                 <Card className="border-border">
                   <CardHeader className="py-3 px-card bg-muted/30 border-b border-border">
                     <CardTitle className="text-body font-semibold text-blue-600 dark:text-blue-400">Nice-to-Have Skills</CardTitle>
                   </CardHeader>
                   <CardContent className="p-card flex flex-wrap gap-1.5">
-                    {selectedJd.parsedNiceToHave.map((s) => (
+                    {(selectedJd.parsedNiceToHave || []).map((s) => (
                       <Badge key={s} variant="default" className="text-[10px]">
                         {s}
                       </Badge>
                     ))}
-                    {selectedJd.parsedNiceToHave.length === 0 && (
+                    {(selectedJd.parsedNiceToHave?.length ?? 0) === 0 && (
                       <p className="text-caption text-muted-foreground italic">No nice-to-have skills parsed.</p>
                     )}
                   </CardContent>
                 </Card>
               </div>
-
+ 
               {/* Keywords Extracted */}
               <div className="space-y-element">
                 <h3 className="font-semibold text-body border-b border-border pb-1">Extracted Core Keywords</h3>
                 <div className="flex flex-wrap gap-1.5">
-                  {selectedJd.parsedKeywords?.map((keyword) => (
+                  {(selectedJd.parsedKeywords || []).map((keyword) => (
                     <Badge key={keyword} variant="default" className="text-[10px] px-2 py-0.5 border-dashed bg-background">
                       {keyword}
                     </Badge>
                   ))}
-                  {(!selectedJd.parsedKeywords || selectedJd.parsedKeywords.length === 0) && (
+                  {(selectedJd.parsedKeywords?.length ?? 0) === 0 && (
                     <p className="text-caption text-muted-foreground italic">No keywords extracted.</p>
                   )}
                 </div>
@@ -467,12 +467,12 @@ export default function JdPage(): ReactElement {
 
             {/* Footer */}
             <div className="border-t border-border px-card py-4 flex gap-element justify-end bg-muted/40">
-              <Button variant="secondary" onClick={() => setViewingDetail(false)}>
+              <Button variant="secondary" className="cursor-pointer" onClick={() => setViewingDetail(false)}>
                 Close Details
               </Button>
               <Button
                 variant="outline"
-                className="flex items-center gap-1.5 border-red-500 text-red-500 hover:bg-red-500/10"
+                className="flex items-center gap-1.5 border-red-500 text-red-500 hover:bg-red-500/10 cursor-pointer"
                 onClick={(e) => {
                   if (selectedJd) handleDelete(selectedJd.id, e);
                 }}
@@ -506,7 +506,7 @@ export default function JdPage(): ReactElement {
                 </span>
                 <h2 className="font-display text-xl font-bold text-foreground mt-0.5">Add Target JD</h2>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setViewingAddDrawer(false)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full cursor-pointer" onClick={() => setViewingAddDrawer(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -550,10 +550,10 @@ export default function JdPage(): ReactElement {
 
               {/* Footer */}
               <div className="border-t border-border px-card py-4 flex gap-element justify-end bg-muted/40 shrink-0">
-                <Button type="button" variant="secondary" onClick={() => setViewingAddDrawer(false)}>
+                <Button type="button" variant="secondary" className="cursor-pointer" onClick={() => setViewingAddDrawer(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white" disabled={submitting}>
+                <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white cursor-pointer" disabled={submitting}>
                   {submitting ? "Analyzing JD..." : "Add & Structure JD"}
                 </Button>
               </div>

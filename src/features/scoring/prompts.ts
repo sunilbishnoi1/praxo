@@ -48,7 +48,9 @@ DIMENSIONS TO SCORE:
 6. coherence (0-100): Is the answer logically structured and easy to follow?
 
 Also provide:
-- feedback: 2-3 sentences of specific, actionable feedback. Be direct and constructive.
+- feedback: A string containing two parts in this exact format (separated by a newline):
+  *AI Analysis*: [Brief evaluation of the answer, strictly no more than 15 words]
+  *Ideal ans*: [The exact correct answer that the user should have given to this question, detailed and complete]
 - strengths: List 1-3 specific things the candidate did well.
 - improvements: List 1-3 specific things to improve.
 - studyResources: List 1-3 specific resources (books, articles, topics) to study.
@@ -209,8 +211,8 @@ ${input.questionsAndAnswersJson}
 Provide a comprehensive, professional evaluation of the entire session.
 Include:
 1. overallSummary: A 2-3 paragraph summary of the candidate's performance, identifying key themes in their style, depth, accuracy, and communication.
-2. keyStrengths: List 2-4 most significant strengths demonstrated across all answers.
-3. keyWeaknesses: List 2-4 most significant weaknesses or areas needing attention across all answers.
+2. keyStrengths: List up to 4 (maximum of 4) most significant strengths demonstrated across all answers.
+3. keyWeaknesses: List up to 4 (maximum of 4) most significant weaknesses or areas needing attention across all answers.
 4. nextSessionFocus: A short instruction on what exactly the user should focus on or practice in their next session to make the biggest improvement.
 
 Respond ONLY with a JSON object matching this schema:
@@ -256,7 +258,7 @@ export function buildSessionStrengthsWeaknessesPrompt(input: SessionSummaryPromp
 QUESTIONS & CANDIDATE ANSWERS WITH INDIVIDUAL SCORES:
 ${input.questionsAndAnswersJson}
 
-Identify the key technical and architectural strengths and weaknesses demonstrated. Pick out specific traits, code details, or communication behaviors.
+Identify the key technical and architectural strengths and weaknesses demonstrated. Pick out specific traits, code details, or communication behaviors. You must generate at most 4 strengths and at most 4 weaknesses.
 Respond ONLY with a JSON object matching this schema:
 {
   "keyStrengths": ["Detailed strength 1", "Detailed strength 2", ...],

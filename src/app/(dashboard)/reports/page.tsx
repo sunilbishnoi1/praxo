@@ -247,10 +247,12 @@ export default function ReportsPage(): ReactElement {
                   </CardTitle>
                   <CardDescription className="flex items-center gap-1.5 text-caption font-semibold mt-1">
                     <Calendar className="h-3.5 w-3.5" />
-                    {new Date(s.createdAt).toLocaleDateString([], {
+                    {new Date(s.createdAt).toLocaleString([], {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </CardDescription>
                 </CardHeader>

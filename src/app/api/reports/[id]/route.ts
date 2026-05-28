@@ -177,36 +177,59 @@ export async function GET(
         } catch {}
 
         // Save report to database
-        report = await prisma.sessionReport.create({
-          data: {
-            sessionId: id,
-            overallScore: aggregated.overallScore,
-            roundTypeScore: aggregated.roundTypeScore,
-            dimensionAverages: JSON.stringify(aggregated.dimensionAverages),
-            fluencySummary: JSON.stringify(aggregated.fluencySummary),
-            strongestAnswerIds: JSON.stringify(aggregated.strongestAnswerIds),
-            weakestAnswerIds: JSON.stringify(aggregated.weakestAnswerIds),
-            companyFitScore: fit?.companyFitScore ?? null,
-            companyFitAnalysis: fit?.companyFitAnalysis ?? null,
-            overallSummary: summary.overallSummary,
-            keyStrengths: JSON.stringify(summary.keyStrengths),
-            keyWeaknesses: JSON.stringify(summary.keyWeaknesses),
-            studyRecommendations: JSON.stringify(aggregated.studyRecommendations),
-            nextSessionFocus: summary.nextSessionFocus,
-          },
-          include: {
-            session: {
-              include: {
-                resume: true,
-                jobDescription: true,
-                questions: {
-                  orderBy: { orderIndex: "asc" },
-                  include: { answer: true },
+        try {
+          report = await prisma.sessionReport.create({
+            data: {
+              sessionId: id,
+              overallScore: aggregated.overallScore,
+              roundTypeScore: aggregated.roundTypeScore,
+              dimensionAverages: JSON.stringify(aggregated.dimensionAverages),
+              fluencySummary: JSON.stringify(aggregated.fluencySummary),
+              strongestAnswerIds: JSON.stringify(aggregated.strongestAnswerIds),
+              weakestAnswerIds: JSON.stringify(aggregated.weakestAnswerIds),
+              companyFitScore: fit?.companyFitScore ?? null,
+              companyFitAnalysis: fit?.companyFitAnalysis ?? null,
+              overallSummary: summary.overallSummary,
+              keyStrengths: JSON.stringify(summary.keyStrengths),
+              keyWeaknesses: JSON.stringify(summary.keyWeaknesses),
+              studyRecommendations: JSON.stringify(aggregated.studyRecommendations),
+              nextSessionFocus: summary.nextSessionFocus,
+            },
+            include: {
+              session: {
+                include: {
+                  resume: true,
+                  jobDescription: true,
+                  questions: {
+                    orderBy: { orderIndex: "asc" },
+                    include: { answer: true },
+                  },
                 },
               },
             },
-          },
-        });
+          });
+        } catch (error: any) {
+          if (error.code === 'P2002') {
+            // Concurrent request already created the report
+            report = await prisma.sessionReport.findUnique({
+              where: { sessionId: id },
+              include: {
+                session: {
+                  include: {
+                    resume: true,
+                    jobDescription: true,
+                    questions: {
+                      orderBy: { orderIndex: "asc" },
+                      include: { answer: true },
+                    },
+                  },
+                },
+              },
+            });
+          } else {
+            throw error;
+          }
+        }
       }
     }
 

@@ -47,6 +47,7 @@ export type SessionOverview = {
   useJdForScoring: boolean;
   generateIdealAnswer: boolean;
   voiceOnly: boolean;
+  voiceConversationMode: string;
   resume: { id: string; name: string } | null;
   jobDescription: { id: string; name: string } | null;
   gapAnalysis: unknown;

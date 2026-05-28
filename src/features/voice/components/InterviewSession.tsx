@@ -28,6 +28,8 @@ import { analyzeFluency } from "../fluency/analyzer";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { VoiceControls } from "./VoiceControls";
 import { VoiceVisualizer } from "./VoiceVisualizer";
+import { startRealtimeVoice } from "../realtime/client";
+import type { RealtimeVoiceController } from "../realtime/client";
 
 type InterviewSessionProps = {
   sessionId: string;
@@ -96,6 +98,7 @@ export function InterviewSession({
   const [questionRevealed, setQuestionRevealed] = useState(false);
   const [thinkingLabel, setThinkingLabel] = useState("Preparing session");
   const [sessionComplete, setSessionComplete] = useState(false);
+  const [hasJoined, setHasJoined] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [generationStage, setGenerationStage] = useState("Initializing report engine...");
@@ -119,6 +122,10 @@ export function InterviewSession({
   const voiceStatusRef = useRef<VoiceSessionStatus>("loading");
   const silenceWatcherRef = useRef<number | null>(null);
   const hasSpokenRef = useRef<boolean>(false);
+  const realtimeControllerRef = useRef<RealtimeVoiceController | null>(null);
+  // Structured dialogue turns for scoring — separate from display messages
+  // Each turn is a discrete speaker segment (created on speaker switch or turnComplete)
+  const dialogueTurnsRef = useRef<Array<{ speaker: string; text: string; timestamp: string }>>([]);
 
   const currentQuestion = session?.questions[currentQuestionIndex] ?? null;
   const currentQuestionText =
@@ -450,29 +457,126 @@ export function InterviewSession({
 
       if (!loadedOnceRef.current && loadedSession.questions[0]) {
         const firstQuestion = loadedSession.questions[0];
-        const introMessage: TranscriptMessage = {
-          id: createId("interviewer"),
-          speaker: "interviewer",
-          text: firstQuestion.text,
-          timestamp: new Date().toISOString(),
-          questionId: firstQuestion.id,
-        };
-        setMessages([introMessage]);
         loadedOnceRef.current = true;
 
-        // Auto-request mic permission immediately at start
-        setThinkingLabel("Requesting microphone access");
-        const micStarted = await ensureMicCapture();
-        if (micStarted) {
-          setThinkingLabel("Interviewer speaking");
-          if (captureRef.current && captureRef.current.mediaRecorder.state !== "inactive") {
-            try {
-              captureRef.current.mediaRecorder.stop();
-            } catch {}
+        if (loadedSession.voiceConversationMode === "realtime") {
+          // In realtime mode, don't pre-add transcript message.
+          // The AI will speak the question and transcription will appear automatically.
+          setMessages([]);
+          setThinkingLabel("Connecting real-time voice gateway...");
+          try {
+            const initRes = await fetch(`/api/voice/realtime-init?sessionId=${sessionId}`);
+            const initJson = await initRes.json();
+            if (initJson.success && initJson.data?.url) {
+              const controller = await startRealtimeVoice({
+                wsUrl: initJson.data.url,
+                onStatusChange: (status) => {
+                  changeVoiceStatus(status as VoiceSessionStatus);
+                  if (status === "listening") {
+                    setThinkingLabel("Listening for your answer");
+                  } else if (status === "ai_speaking") {
+                    setThinkingLabel("Interviewer speaking");
+                  } else if (status === "connecting") {
+                    setThinkingLabel("Connecting to voice gateway");
+                  }
+                },
+                onLevelSample: (lvl, spk) => {
+                  setLevel({ level: lvl, speaking: spk, timestamp: Date.now() });
+                },
+                onTranscriptChange: (speaker, text, _isFinal) => {
+                  if (!text.trim()) return;
+                  // 1. Update display messages (concat deltas for clean UI)
+                  setMessages((prev) => {
+                    const next = [...prev];
+                    const lastIdx = next.length - 1;
+                    const last = lastIdx >= 0 ? next[lastIdx] : null;
+                    if (last && last.speaker === speaker) {
+                      // Smart concatenation: append deltas directly, add space between discrete words/segments
+                      const lastChar = last.text.slice(-1);
+                      const firstChar = text.charAt(0);
+                      const needsSpace = lastChar && firstChar &&
+                        !/\s/.test(lastChar) && !/\s/.test(firstChar) &&
+                        ((/\w/.test(lastChar) && /\w/.test(firstChar)) ||
+                         (/[.,!?;:]/.test(lastChar) && /\w/.test(firstChar)));
+
+                      next[lastIdx] = {
+                        ...last,
+                        text: last.text + (needsSpace ? " " : "") + text,
+                      };
+                      return next;
+                    } else {
+                      return [...next, {
+                        id: createId(speaker),
+                        speaker,
+                        text: text.trim(),
+                        timestamp: new Date().toISOString(),
+                      }];
+                    }
+                  });
+                  // 2. Also track structured dialogue turns for scoring
+                  const turns = dialogueTurnsRef.current;
+                  const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+                  if (lastTurn && lastTurn.speaker === speaker) {
+                    // Append to current turn
+                    const lastChar = lastTurn.text.slice(-1);
+                    const firstChar = text.charAt(0);
+                    const needsSpace = lastChar && firstChar &&
+                      !/\s/.test(lastChar) && !/\s/.test(firstChar) &&
+                      ((/\w/.test(lastChar) && /\w/.test(firstChar)) ||
+                       (/[.,!?;:]/.test(lastChar) && /\w/.test(firstChar)));
+                    lastTurn.text = lastTurn.text + (needsSpace ? " " : "") + text;
+                  } else {
+                    // New turn (speaker changed)
+                    turns.push({
+                      speaker,
+                      text: text.trim(),
+                      timestamp: new Date().toISOString(),
+                    });
+                  }
+                },
+                onError: (err) => {
+                  setError(err);
+                }
+              });
+              realtimeControllerRef.current = controller;
+              // Send the initial prompt. The AI will speak it as audio.
+              controller.sendText(
+                `Start the interview. Greet the candidate briefly, then ask the first question: "${firstQuestion.text}"`
+              );
+              setMicActive(true);
+              setLoading(false);
+            } else {
+              throw new Error(initJson.error?.message || "Failed to initiate real-time socket.");
+            }
+          } catch (e: any) {
+            console.error("Realtime initialization failed, falling back to cascaded mode:", e);
+            loadedOnceRef.current = false; // allow retry
+            throw e;
           }
+        } else {
+          // Cascaded mode: pre-add transcript and speak via TTS
+          const introMessage: TranscriptMessage = {
+            id: createId("interviewer"),
+            speaker: "interviewer",
+            text: firstQuestion.text,
+            timestamp: new Date().toISOString(),
+            questionId: firstQuestion.id,
+          };
+          setMessages([introMessage]);
+          // Auto-request mic permission immediately at start
+          setThinkingLabel("Requesting microphone access");
+          const micStarted = await ensureMicCapture();
+          if (micStarted) {
+            setThinkingLabel("Interviewer speaking");
+            if (captureRef.current && captureRef.current.mediaRecorder.state !== "inactive") {
+              try {
+                captureRef.current.mediaRecorder.stop();
+              } catch {}
+            }
+          }
+          setLoading(false);
+          void speakRef.current(firstQuestion.text);
         }
-        setLoading(false);
-        void speakRef.current(firstQuestion.text);
       }
     } catch (exception) {
       const message =
@@ -663,6 +767,10 @@ export function InterviewSession({
     setSessionComplete(true);
     sessionCompleteRef.current = true;
     await stopCapture();
+    if (realtimeControllerRef.current) {
+      realtimeControllerRef.current.stop();
+      realtimeControllerRef.current = null;
+    }
     changeVoiceStatus("completed");
 
     const interval = setInterval(() => {
@@ -678,10 +786,15 @@ export function InterviewSession({
     }, 1500);
 
     try {
+      // For realtime mode, prefer structured dialogue turns; fallback to display messages
+      const isRealtime = sessionRef.current?.voiceConversationMode === "realtime";
+      const dialogue = isRealtime && dialogueTurnsRef.current.length > 0
+        ? dialogueTurnsRef.current.map((t) => ({ speaker: t.speaker, text: t.text }))
+        : messages.map((msg) => ({ speaker: msg.speaker, text: msg.text }));
       const response = await fetch(`/api/sessions/${sessionId}/end`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, dialogue }),
       });
       const json = await response.json();
       clearInterval(interval);
@@ -693,12 +806,14 @@ export function InterviewSession({
           router.push(`/reports/${json.data.reportId}`);
         }, 800);
       } else {
-        router.push("/");
+        // Redirect to reports with sessionId — the reports API has auto-recovery
+        // that can generate a report for completed sessions
+        router.push(`/reports/${sessionId}`);
       }
     } catch (err) {
       console.error(err);
       clearInterval(interval);
-      router.push("/");
+      router.push(`/reports/${sessionId}`);
     }
   }
 
@@ -707,6 +822,8 @@ export function InterviewSession({
   }
 
   useEffect(() => {
+    if (!hasJoined) return;
+
     const timer = window.setTimeout(() => {
       void loadSession();
     }, 0);
@@ -714,11 +831,15 @@ export function InterviewSession({
     return () => {
       window.clearTimeout(timer);
       void stopCapture();
+      if (realtimeControllerRef.current) {
+        realtimeControllerRef.current.stop();
+        realtimeControllerRef.current = null;
+      }
       if (typeof window !== "undefined") {
         window.speechSynthesis?.cancel();
       }
     };
-  }, [loadSession]);
+  }, [loadSession, hasJoined]);
 
   useEffect(() => {
     if (!session || loading || sessionComplete) {
@@ -734,11 +855,59 @@ export function InterviewSession({
     };
   }, [session, loading, sessionComplete]);
 
-  if (loading) {
+  if (loading && hasJoined) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center gap-element text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin text-brand-500" aria-hidden />
         <p className="text-body font-semibold">Configuring voice socket...</p>
+      </div>
+    );
+  }
+
+  if (!hasJoined) {
+    return (
+      <div className="flex flex-col h-screen max-h-screen overflow-hidden bg-background">
+        <header className="sticky top-0 z-40 border-b border-border bg-background/85 px-6 py-4 backdrop-blur flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 font-bold text-caption text-brand-700 uppercase tracking-wider">
+              INTERVIEW SESSION
+            </span>
+          </div>
+          <Button variant="ghost" size="sm" asChild className="hover:bg-muted font-semibold">
+            <Link href="/session/new">
+              <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
+              Back
+            </Link>
+          </Button>
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+          <div className="max-w-md w-full space-y-8 bg-card border border-border p-8 rounded-2xl shadow-sm">
+            <div className="mx-auto w-16 h-16 rounded-full bg-brand-500/10 flex items-center justify-center mb-6">
+              <Sparkles className="h-8 w-8 text-brand-500" />
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-2xl font-bold text-foreground font-display">Ready to Begin</h2>
+              <p className="text-body text-muted-foreground">
+                Your interview session is prepared. Please ensure your microphone is working and you are in a quiet environment.
+              </p>
+            </div>
+            <Button
+              size="lg"
+              className="w-full bg-brand-500 hover:bg-brand-600 text-white font-bold h-12 text-lg rounded-xl"
+              onClick={() => {
+                // Warm up AudioContext immediately on user gesture to satisfy browser Autoplay policies
+                const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+                if (AudioContextClass) {
+                  const ctx = new AudioContextClass();
+                  ctx.resume().catch(() => {});
+                }
+                setHasJoined(true);
+              }}
+            >
+              Join Session
+            </Button>
+          </div>
+        </main>
       </div>
     );
   }

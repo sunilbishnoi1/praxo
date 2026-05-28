@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -122,6 +122,78 @@ type ReportDetail = {
     jobDescription?: { id: string; name: string } | null;
   };
 };
+
+function parseInlineMarkdown(text: string): ReactNode[] {
+  if (!text) return [];
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return tokens.map((token, idx) => {
+    if (token.startsWith("**") && token.endsWith("**")) {
+      return (
+        <strong key={idx} className="font-bold text-foreground">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (token.startsWith("*") && token.endsWith("*")) {
+      return (
+        <strong key={idx} className="font-bold text-foreground">
+          {token.slice(1, -1)}
+        </strong>
+      );
+    }
+    return token;
+  });
+}
+
+function renderStructuredMarkdown(text: string): ReactNode {
+  if (!text) return null;
+
+  // Detect if there are contiguous inline numbered items like "1. " or "2. "
+  const hasInlineNumbers = /(?:\b\d+\.\s+){2,}/.test(text) || (text.includes("1. ") && text.includes("2. "));
+
+  if (hasInlineNumbers) {
+    const parts = text.split(/(?=\b\d+\.\s)/);
+    return (
+      <div className="space-y-3">
+        {parts.map((part, idx) => {
+          const trimmed = part.trim();
+          if (!trimmed) return null;
+
+          const isListItem = /^\d+\.\s/.test(trimmed);
+
+          if (isListItem) {
+            return (
+              <div key={idx} className="pl-4 border-l-2 border-brand-500/30 py-1">
+                {parseInlineMarkdown(trimmed)}
+              </div>
+            );
+          } else {
+            return (
+              <p key={idx} className="font-semibold text-foreground">
+                {parseInlineMarkdown(trimmed)}
+              </p>
+            );
+          }
+        })}
+      </div>
+    );
+  }
+
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-2">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={idx} className="h-2" />;
+        return (
+          <p key={idx} className="leading-relaxed">
+            {parseInlineMarkdown(line)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ReportDetailPage(): ReactElement {
   const { id } = useParams() as { id: string };
@@ -398,9 +470,12 @@ export default function ReportDetailPage(): ReactElement {
             </div>
           </CardHeader>
           <CardContent className="pt-6 space-y-4 flex-1">
-            <p className="font-body-md text-body-md text-muted-foreground leading-relaxed whitespace-pre-wrap">
-              {report.overallSummary || "Analyzing the session transcription content shows exceptional structural capabilities with concrete examples. Key design patterns were demonstrated clearly."}
-            </p>
+            <div className="font-body-md text-body-md text-muted-foreground leading-relaxed">
+              {report.overallSummary 
+                ? renderStructuredMarkdown(report.overallSummary)
+                : "Analyzing the session transcription content shows exceptional structural capabilities with concrete examples. Key design patterns were demonstrated clearly."
+              }
+            </div>
           </CardContent>
         </Card>
 
@@ -419,7 +494,7 @@ export default function ReportDetailPage(): ReactElement {
                   report.keyStrengths.map((s, index) => (
                     <li key={index} className="flex items-start gap-2">
                       <span className="text-emerald-500 font-bold mt-0.5">•</span>
-                      <span>{s}</span>
+                      <span>{parseInlineMarkdown(s)}</span>
                     </li>
                   ))
                 ) : (
@@ -451,7 +526,7 @@ export default function ReportDetailPage(): ReactElement {
                   report.keyWeaknesses.map((w, index) => (
                     <li key={index} className="flex items-start gap-2">
                       <span className="text-brand-500 font-bold mt-0.5">•</span>
-                      <span>{w}</span>
+                      <span>{parseInlineMarkdown(w)}</span>
                     </li>
                   ))
                 ) : (
@@ -492,91 +567,108 @@ export default function ReportDetailPage(): ReactElement {
       )}
 
       {/* Prep & Prep Section */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-gutter pt-2">
-        {/* Next Focus */}
-        <Card className="border-border bg-card shadow-sm flex flex-col justify-between">
-          <CardHeader className="bg-muted/10 border-b border-border pb-4">
-            <div className="flex items-center gap-2 text-brand-700">
-              <Award className="h-5 w-5" />
-              <CardTitle className="font-display text-lg font-bold text-foreground">Next Session Focus</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4 flex-1">
-            <p className="text-caption text-muted-foreground leading-relaxed font-semibold">
-              {report.nextSessionFocus || "Develop concrete metric storytelling skills. Practice framing behavioral narratives using quantitative results (e.g. latency reduced by X%, team velocity increased by Y%)."}
-            </p>
-          </CardContent>
-        </Card>
+      {(() => {
+        const sortedRecommendations = report.studyRecommendations
+          ? [...report.studyRecommendations].sort((a, b) => {
+              const order = { high: 1, medium: 2, low: 3 };
+              const pA = order[a.priority as keyof typeof order] || 4;
+              const pB = order[b.priority as keyof typeof order] || 4;
+              return pA - pB;
+            })
+          : [];
 
-        {/* Study Prep Recommendations */}
-        <Card className="lg:col-span-2 border-border bg-card shadow-sm">
-          <CardHeader className="bg-muted/10 border-b border-border pb-4">
-            <div className="flex items-center gap-2 text-[#006783]">
-              <BookOpen className="h-5 w-5" />
-              <CardTitle className="font-display text-lg font-bold text-foreground">Recommended Study & Prep Plan</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            {report.studyRecommendations && report.studyRecommendations.length > 0 ? (
-              <div className="space-y-4">
-                {report.studyRecommendations.map((rec, idx) => {
-                  const badgeColors = 
-                    rec.priority === "high" 
-                      ? "bg-red-500/10 text-red-600 border-red-500/20"
-                      : rec.priority === "medium"
-                      ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                      : "bg-muted text-muted-foreground border-border";
+        return (
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-gutter pt-2">
+            {/* Next Focus */}
+            <Card className="border-border bg-card shadow-sm flex flex-col h-full">
+              <CardHeader className="bg-muted/10 border-b border-border pb-4 shrink-0">
+                <div className="flex items-center gap-2 text-brand-700">
+                  <Award className="h-5 w-5" />
+                  <CardTitle className="font-display text-lg font-bold text-foreground">Next Session Focus</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4 flex-1">
+                <div className="text-caption text-muted-foreground leading-relaxed font-semibold">
+                  {report.nextSessionFocus 
+                    ? renderStructuredMarkdown(report.nextSessionFocus)
+                    : "Develop concrete metric storytelling skills. Practice framing behavioral narratives using quantitative results (e.g. latency reduced by X%, team velocity increased by Y%)."
+                  }
+                </div>
+              </CardContent>
+            </Card>
 
-                  return (
-                    <div key={idx} className="border border-border p-4 rounded-lg bg-muted/5 flex flex-col md:flex-row justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <Badge variant="muted" className={`font-bold text-[9px] tracking-wider uppercase px-2 ${badgeColors}`}>
-                            {rec.priority} Priority
-                          </Badge>
-                          <h4 className="font-body-md text-sm font-bold text-foreground">{rec.topic}</h4>
+            {/* Study Prep Recommendations */}
+            <Card className="border-border bg-card shadow-sm flex flex-col h-full">
+              <CardHeader className="bg-muted/10 border-b border-border pb-4 shrink-0">
+                <div className="flex items-center gap-2 text-[#006783]">
+                  <BookOpen className="h-5 w-5" />
+                  <CardTitle className="font-display text-lg font-bold text-foreground">Recommended Study & Prep Plan</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4 flex-1">
+                {sortedRecommendations && sortedRecommendations.length > 0 ? (
+                  <div className="space-y-4">
+                    {sortedRecommendations.map((rec, idx) => {
+                      const badgeColors = 
+                        rec.priority === "high" 
+                          ? "bg-red-500/10 text-red-600 border-red-500/20"
+                          : rec.priority === "medium"
+                          ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                          : "bg-muted text-muted-foreground border-border";
+
+                      return (
+                        <div key={idx} className="border border-border p-4 rounded-lg bg-muted/5 flex flex-col gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="muted" className={`font-bold text-[9px] tracking-wider uppercase px-2 whitespace-nowrap shrink-0 ${badgeColors}`}>
+                              {rec.priority} Priority
+                            </Badge>
+                            <h4 className="font-body-md text-sm font-bold text-foreground leading-snug">{rec.topic}</h4>
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-muted-foreground font-semibold">Recommended material & resources:</p>
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {rec.resources && rec.resources.map((res, rIdx) => (
+                                <span 
+                                  key={rIdx}
+                                  className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783] break-words max-w-full"
+                                >
+                                  {res}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground font-semibold mt-1">Recommended material & resources:</p>
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-1.5 items-center shrink-0 self-start md:self-center">
-                        {rec.resources && rec.resources.map((res, rIdx) => (
-                          <span 
-                            key={rIdx}
-                            className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]"
-                          >
-                            {res}
-                          </span>
-                        ))}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="border border-border p-4 rounded-lg bg-muted/5 flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="muted" className="font-bold text-[9px] tracking-wider uppercase px-2 whitespace-nowrap shrink-0 bg-red-500/10 text-red-600 border-red-500/20">
+                        high Priority
+                      </Badge>
+                      <h4 className="font-body-md text-sm font-bold text-foreground leading-snug">STAR Behavioral Framework</h4>
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-semibold">Structured behavioral answers with clear situational context.</p>
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]">
+                          STAR guide
+                        </span>
+                        <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]">
+                          Template
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="border border-border p-4 rounded-lg bg-muted/5 flex flex-col md:flex-row justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Badge variant="muted" className="font-bold text-[9px] tracking-wider uppercase px-2 bg-red-500/10 text-red-600 border-red-500/20">
-                      high Priority
-                    </Badge>
-                    <h4 className="font-body-md text-sm font-bold text-foreground">STAR Behavioral Framework</h4>
                   </div>
-                  <p className="text-xs text-muted-foreground font-semibold">Structured behavioral answers with clear situational context.</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5 items-center shrink-0">
-                  <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]">
-                    STAR guide
-                  </span>
-                  <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-card border border-border text-[#006783]">
-                    Template
-                  </span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        );
+      })()}
 
       {/* Per-Question Breakdown */}
       <section className="space-y-stack-md pt-4">
@@ -641,9 +733,12 @@ export default function ReportDetailPage(): ReactElement {
                         <Lightbulb className="h-4 w-4" />
                         AI Analysis & Ideal Structure
                       </h4>
-                      <p className="text-caption text-muted-foreground font-medium leading-relaxed">
-                        {q.answer?.scores?.feedback || `Excellent attempt at answering this ${q.questionType} question. Clear focus was shown on the core concepts.`}
-                      </p>
+                      <div className="text-caption text-muted-foreground font-medium leading-relaxed">
+                        {q.answer?.scores?.feedback 
+                          ? renderStructuredMarkdown(q.answer.scores.feedback)
+                          : `Excellent attempt at answering this ${q.questionType} question. Clear focus was shown on the core concepts.`
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>

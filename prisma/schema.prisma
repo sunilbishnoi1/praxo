@@ -28,6 +28,7 @@ model User {
   defaultTtsProvider String? // "openai" | "kokoro"
   defaultDifficulty  String? // "intern" | "fresher" | "experienced"
   defaultRoundType   String? // "technical-resume" | "dsa" | "behavioural" | "oop-cs" | "system-design"
+  defaultVoiceConversationMode String? @default("cascaded") // "cascaded" | "realtime"
 
   // Relations
   sessions        Session[]
@@ -149,6 +150,7 @@ model Session {
   useJdForScoring    Boolean @default(true)
   generateIdealAnswer Boolean @default(true)
   voiceOnly           Boolean @default(false)
+  voiceConversationMode String @default("cascaded") // "cascaded" | "realtime"
 
   // Provider config snapshot (what was used for this session)
   llmProvider String // "openai" | "anthropic" | etc.
@@ -169,6 +171,7 @@ model Session {
   completedAt     DateTime?
   totalDurationMs Int? // Total session duration in milliseconds
   questionCount   Int      @default(0)
+  dialogueHistory String?  // Raw dialogue turns from realtime sessions
 
   // Relations
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -16,3 +16,8 @@ export {
 export {
   ScoringService,
 } from "./scoring.service";
+export {
+  segmentRealtimeDialogue,
+  type MappedDialogueAnswer,
+  type DialogueSegmentationResult,
+} from "./realtime-scoring.service";

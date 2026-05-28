@@ -130,6 +130,20 @@ export default function PerformancePage(): ReactElement {
   const analytics = data!;
   const graphSessions = analytics.trend;
 
+  // Dynamic Y-axis scale calculation
+  const yMax = 100;
+  const rawMin = graphSessions.length > 0 ? Math.min(...graphSessions.map((s) => s.overallScore)) : 50;
+  // If the lowest score is below 55, dynamically lower the floor to a nice rounded buffer, e.g. 42% -> 30%
+  const yMin = rawMin < 55 ? Math.max(0, Math.floor((rawMin - 10) / 10) * 10) : 50;
+
+  // Generate 5 grid ticks beautifully spaced between yMax and yMin
+  const gridTicks: number[] = [];
+  const tickCount = 5;
+  for (let i = 0; i < tickCount; i++) {
+    const val = yMax - (i * (yMax - yMin)) / (tickCount - 1);
+    gridTicks.push(Math.round(val));
+  }
+
   // SVG Line coordinates computation
   const svgWidth = 1000;
   const svgHeight = 200;
@@ -139,7 +153,7 @@ export default function PerformancePage(): ReactElement {
   const points = graphSessions.map((s, index) => {
     const x = paddingX + (index * (svgWidth - 2 * paddingX)) / Math.max(graphSessions.length - 1, 1);
     const score = s.overallScore;
-    const y = svgHeight - paddingY - ((score - 50) * (svgHeight - 2 * paddingY)) / 50; // scaled between 50 and 100
+    const y = svgHeight - paddingY - ((score - yMin) * (svgHeight - 2 * paddingY)) / (yMax - yMin);
     return { x, y, score, ...s };
   });
 
@@ -215,11 +229,21 @@ export default function PerformancePage(): ReactElement {
           {/* Chart Frame */}
           <div className="h-56 w-full relative select-none">
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] font-mono text-muted-foreground/45 font-bold">
-              <div className="border-t border-border/60 w-full h-0 flex justify-end pt-1">100</div>
-              <div className="border-t border-border/60 w-full h-0 flex justify-end pt-1">87</div>
-              <div className="border-t border-border/60 w-full h-0 flex justify-end pt-1">75</div>
-              <div className="border-t border-border/60 w-full h-0 flex justify-end pt-1">62</div>
-              <div className="border-b border-border/60 w-full h-0 flex justify-end pb-1">50</div>
+              {gridTicks.map((tick, i) => {
+                const isLast = i === gridTicks.length - 1;
+                return (
+                  <div
+                    key={i}
+                    className={`${
+                      isLast ? "border-b" : "border-t"
+                    } border-border/60 w-full h-0 flex justify-end ${
+                      isLast ? "pb-1" : "pt-1"
+                    }`}
+                  >
+                    {tick}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Line SVG (animated & premium) */}
@@ -319,6 +343,19 @@ export default function PerformancePage(): ReactElement {
             <CardDescription className="text-muted-foreground">Calibrated scoring aggregates across round formats</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-5">
+            {/* Technical Resume */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-caption font-semibold">
+                <span className="flex items-center gap-2 text-foreground">
+                  <FileText className="h-4 w-4 text-[#006783]" />
+                  Technical Experience & Resume
+                </span>
+                <span className="text-[#006783] font-bold">{analytics.domainReadiness.technicalResume}%</span>
+              </div>
+              <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-[#006783] rounded-full" style={{ width: `${analytics.domainReadiness.technicalResume}%` }}></div>
+              </div>
+            </div>
             {/* Tech */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-caption font-semibold">
@@ -372,20 +409,6 @@ export default function PerformancePage(): ReactElement {
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                 <div className="h-full bg-teal-500 rounded-full" style={{ width: `${analytics.domainReadiness.oop}%` }}></div>
-              </div>
-            </div>
-
-            {/* Technical Resume */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-caption font-semibold">
-                <span className="flex items-center gap-2 text-foreground">
-                  <FileText className="h-4 w-4 text-[#006783]" />
-                  Technical Experience & Resume
-                </span>
-                <span className="text-[#006783] font-bold">{analytics.domainReadiness.technicalResume}%</span>
-              </div>
-              <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-[#006783] rounded-full" style={{ width: `${analytics.domainReadiness.technicalResume}%` }}></div>
               </div>
             </div>
           </CardContent>

@@ -139,6 +139,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       useJdForScoring,
       generateIdealAnswer,
       voiceOnly,
+      voiceConversationMode,
     } = body;
 
     // Validation
@@ -340,6 +341,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       gapAnalysisJson = JSON.stringify(gap);
     }
 
+    const userPref = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { defaultVoiceConversationMode: true },
+    });
+    const defaultMode = userPref?.defaultVoiceConversationMode || "cascaded";
+    const mode = typeof voiceConversationMode === "string" && ["cascaded", "realtime"].includes(voiceConversationMode)
+      ? voiceConversationMode
+      : defaultMode;
+
     // Create session in Database
     const session = await prisma.session.create({
       data: {
@@ -362,6 +372,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         generateIdealAnswer:
           typeof generateIdealAnswer === "boolean" ? generateIdealAnswer : true,
         voiceOnly: typeof voiceOnly === "boolean" ? voiceOnly : false,
+        voiceConversationMode: mode,
       },
     });
 
@@ -390,6 +401,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             useJdForScoring: session.useJdForScoring,
             generateIdealAnswer: session.generateIdealAnswer,
             voiceOnly: session.voiceOnly,
+            voiceConversationMode: session.voiceConversationMode,
             createdAt: session.createdAt.toISOString(),
           },
         },

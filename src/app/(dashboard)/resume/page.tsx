@@ -408,14 +408,14 @@ export default function ResumePage(): ReactElement {
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => handleViewDetails(resume.id)}
-                    className="p-2 text-muted-foreground hover:text-brand-700 transition-colors rounded-lg hover:bg-muted"
+                    className="p-2 text-muted-foreground hover:text-brand-700 transition-colors rounded-lg hover:bg-muted cursor-pointer"
                     title="View details"
                   >
                     <Eye className="h-5 w-5" />
                   </button>
                   <button
                     onClick={(e) => handleDelete(resume.id, e)}
-                    className="p-2 text-muted-foreground hover:text-red-500 transition-colors rounded-lg hover:bg-red-500/10"
+                    className="p-2 text-muted-foreground hover:text-red-500 transition-colors rounded-lg hover:bg-red-500/10 cursor-pointer"
                     title="Delete resume"
                   >
                     <Trash2 className="h-5 w-5" />
@@ -443,7 +443,7 @@ export default function ResumePage(): ReactElement {
                 <span className="text-caption text-brand-700 font-semibold tracking-wider uppercase">Parsed Profile</span>
                 <h2 className="font-display text-xl font-bold text-foreground mt-0.5">{selectedResume.name}</h2>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setViewingDetail(false)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full cursor-pointer" onClick={() => setViewingDetail(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -575,12 +575,12 @@ export default function ResumePage(): ReactElement {
 
             {/* Footer */}
             <div className="border-t border-border px-card py-4 flex gap-element justify-end bg-muted/40">
-              <Button variant="secondary" onClick={() => setViewingDetail(false)}>
+              <Button variant="secondary" className="cursor-pointer" onClick={() => setViewingDetail(false)}>
                 Close Profile
               </Button>
               <Button
                 variant="outline"
-                className="flex items-center gap-1.5 border-red-500 text-red-500 hover:bg-red-500/10"
+                className="flex items-center gap-1.5 border-red-500 text-red-500 hover:bg-red-500/10 cursor-pointer"
                 onClick={(e) => {
                   if (selectedResume) handleDelete(selectedResume.id, e);
                 }}
@@ -614,7 +614,7 @@ export default function ResumePage(): ReactElement {
                 </span>
                 <h2 className="font-display text-xl font-bold text-foreground mt-0.5">Add New Resume</h2>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setViewingUploadDrawer(false)}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full cursor-pointer" onClick={() => setViewingUploadDrawer(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -637,7 +637,7 @@ export default function ResumePage(): ReactElement {
                   <div className="flex rounded-lg border border-border bg-card p-0.5">
                     <button
                       type="button"
-                      className={`flex-1 rounded-[6px] py-1.5 text-center text-caption font-medium transition-all ${
+                      className={`flex-1 rounded-[6px] py-1.5 text-center text-caption font-medium transition-all cursor-pointer ${
                         uploadMode === "file"
                           ? "bg-muted text-foreground shadow-sm font-semibold"
                           : "text-muted-foreground hover:text-foreground"
@@ -648,7 +648,7 @@ export default function ResumePage(): ReactElement {
                     </button>
                     <button
                       type="button"
-                      className={`flex-1 rounded-[6px] py-1.5 text-center text-caption font-medium transition-all ${
+                      className={`flex-1 rounded-[6px] py-1.5 text-center text-caption font-medium transition-all cursor-pointer ${
                         uploadMode === "text"
                           ? "bg-muted text-foreground shadow-sm font-semibold"
                           : "text-muted-foreground hover:text-foreground"
@@ -693,7 +693,7 @@ export default function ResumePage(): ReactElement {
                           : "Supports PDF format up to 5MB"}
                       </p>
                       {!selectedFile && (
-                        <Button type="button" variant="secondary" size="sm" className="mt-4">
+                        <Button type="button" variant="secondary" size="sm" className="mt-4 cursor-pointer">
                           Browse Files
                         </Button>
                       )}
@@ -715,10 +715,10 @@ export default function ResumePage(): ReactElement {
 
               {/* Footer */}
               <div className="border-t border-border px-card py-4 flex gap-element justify-end bg-muted/40 shrink-0">
-                <Button type="button" variant="secondary" onClick={() => setViewingUploadDrawer(false)}>
+                <Button type="button" variant="secondary" className="cursor-pointer" onClick={() => setViewingUploadDrawer(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white" disabled={submitting}>
+                <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white cursor-pointer" disabled={submitting}>
                   {submitting ? "Processing..." : "Parse & Save Resume"}
                 </Button>
               </div>

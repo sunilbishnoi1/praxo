@@ -8,9 +8,10 @@ export default async function SettingsPage(): Promise<ReactElement> {
   const userId = await getDefaultUserId();
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { defaultLlmProvider: true },
+    select: { defaultLlmProvider: true, defaultVoiceConversationMode: true },
   });
   const defaultLlmProvider = user?.defaultLlmProvider ?? null;
+  const defaultVoiceConversationMode = user?.defaultVoiceConversationMode ?? "cascaded";
 
   return (
     <>
@@ -24,7 +25,11 @@ export default async function SettingsPage(): Promise<ReactElement> {
 
       {/* Main Settings Panel */}
       <div className="flex flex-col gap-stack-lg flex-1">
-        <ProviderSettings initialProviders={providers} defaultLlmProvider={defaultLlmProvider} />
+        <ProviderSettings
+          initialProviders={providers}
+          defaultLlmProvider={defaultLlmProvider}
+          defaultVoiceConversationMode={defaultVoiceConversationMode}
+        />
       </div>
     </>
   );

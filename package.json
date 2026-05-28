@@ -23,6 +23,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "^2.6.0",
+    "ws": "^8.20.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -31,6 +32,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "prisma": "^5.20.0",

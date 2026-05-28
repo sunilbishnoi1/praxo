@@ -190,6 +190,7 @@ export default function NewSessionPage(): ReactElement {
   const [useJdForScoring, setUseJdForScoring] = useState<boolean>(true);
   const [generateIdealAnswer, setGenerateIdealAnswer] = useState<boolean>(true);
   const [voiceOnly, setVoiceOnly] = useState<boolean>(false);
+  const [voiceConversationMode, setVoiceConversationMode] = useState<string>("cascaded");
 
   const [resumes, setResumes] = useState<ResumeOption[]>([]);
   const [jds, setJds] = useState<JdOption[]>([]);
@@ -212,19 +213,24 @@ export default function NewSessionPage(): ReactElement {
       setLoading(true);
       setErrorMsg("");
       try {
-        const [resumesRes, jdsRes] = await Promise.all([
+        const [resumesRes, jdsRes, defaultsRes] = await Promise.all([
           fetch("/api/resumes"),
           fetch("/api/job-descriptions"),
+          fetch("/api/providers/default"),
         ]);
 
         const resumesJson = await resumesRes.json();
         const jdsJson = await jdsRes.json();
+        const defaultsJson = await defaultsRes.json();
 
         if (resumesJson.success) {
           setResumes(resumesJson.data.resumes || []);
         }
         if (jdsJson.success) {
           setJds(jdsJson.data.jobDescriptions || []);
+        }
+        if (defaultsJson.success && defaultsJson.data?.defaultVoiceConversationMode) {
+          setVoiceConversationMode(defaultsJson.data.defaultVoiceConversationMode);
         }
       } catch (err) {
         console.error("Failed to load session options:", err);
@@ -377,6 +383,7 @@ export default function NewSessionPage(): ReactElement {
         useJdForScoring,
         generateIdealAnswer,
         voiceOnly,
+        voiceConversationMode,
       }),
     });
 
@@ -793,6 +800,12 @@ export default function NewSessionPage(): ReactElement {
                 description="Produce a structured high-quality reference solution in post-interview reports."
                 checked={generateIdealAnswer}
                 onChange={setGenerateIdealAnswer}
+              />
+              <OptionToggle
+                label="Low-Latency Real-time Mode"
+                description="Experience instant conversational replies (< 800ms) with native multimodal speech models."
+                checked={voiceConversationMode === "realtime"}
+                onChange={(checked) => setVoiceConversationMode(checked ? "realtime" : "cascaded")}
               />
               <OptionToggle
                 label="Voice only"

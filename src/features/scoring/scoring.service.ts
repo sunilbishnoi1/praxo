@@ -207,7 +207,7 @@ export class ScoringService {
         starStructure: 50,
         timeComplexity: 50,
         coherence: 50,
-        feedback: "Could not retrieve detailed score analysis due to a service error. Neutral scores assigned.",
+        feedback: "*AI Analysis*: Service error.\n*Ideal ans*: Could not retrieve detailed score analysis due to a service error. Neutral scores assigned.",
         strengths: ["Completed this interview question"],
         improvements: ["Ensure structured explanation in the next question"],
         studyResources: ["Interview Prep Guides"],
